@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3D Flood Twin - AIRESQ</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+
+<button id="hamburgerBtn" class="open"><span></span><span></span><span></span></button>
+<div id="captureFlash"></div>
+
+<div id="loadingOverlay">
+  <div class="loader">
+    <div class="spinner"></div>
+    <h2>Initializing Flood Visualization…</h2>
+    <p id="loadingProgress">Loading map SDK…</p>
+  </div>
+</div>
+
+<div id="map"></div>
+<div id="chunkLoadingIndicator">Loading timestep data…</div>
+
+<!-- FLOOD DEPTH POPUP -->
+<div id="floodPopup">
+  <div class="fp-card">
+    <button class="fp-close" id="fpClose">✕</button>
+    <div class="fp-head"><span>💧</span><span class="fp-head-title">Flood Depth</span></div>
+    <div class="fp-depth"><span class="fp-depth-val" id="fpVal">—</span><span class="fp-depth-unit">metres</span></div>
+    <div class="fp-badge" id="fpBadge"><span class="dot" id="fpDot"></span><span id="fpLabel">—</span></div>
+    <div class="fp-divider"></div>
+    <div class="fp-meta"><b>Time:</b> <span id="fpTime">—</span><br><b>Location:</b> <span id="fpCoords">—</span></div>
+  </div>
+</div>
+
+<!-- OFF-SCREEN STATS CARD for screenshot overlay -->
+<div id="captureOverlay">
+  <div id="statsCard">
+    <div class="sc-title">📸 FloodTwin Export · AIRESQ</div>
+    <div class="sc-time" id="scTime">—</div>
+    <div class="sc-row"><div class="sc-swatch" style="background:#6BC3D2"></div><span class="sc-label">Low (&lt;0.5m)</span><span class="sc-val" id="scLow">—</span></div>
+    <div class="sc-row"><div class="sc-swatch" style="background:#5298A9"></div><span class="sc-label">Moderate (0.5–1m)</span><span class="sc-val" id="scMod">—</span></div>
+    <div class="sc-row"><div class="sc-swatch" style="background:#49879A"></div><span class="sc-label">High (1–2m)</span><span class="sc-val" id="scHigh">—</span></div>
+    <div class="sc-row"><div class="sc-swatch" style="background:#264351"></div><span class="sc-label">Severe (&gt;2m)</span><span class="sc-val" id="scSevere">—</span></div>
+    <div class="sc-brand">airesq.com · flood digital twin</div>
+  </div>
+</div>
+
+<!-- SIDEBAR -->
+<div id="sidebar">
+  <button id="collapseBtn">‹</button>
+
+  <div id="titleBar">
+    <h1>Flood Twin</h1>
+    <p>3D Immersive Flood Visualization Engine</p>
+  </div>
+
+  <div id="searchWrap">
+    <div id="searchRow">
+      <span id="srchIcon">🔍</span>
+      <input id="searchInput" type="text" placeholder="Search location… (or click map)" autocomplete="off" spellcheck="false">
+      <ul id="searchSuggestions"></ul>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-header-left"><span class="panel-icon">🕐</span><span class="panel-title">Time Control</span></div>
+    </div>
+    <div id="timeBox"><div id="timeBoxLabel">Current Time</div><div id="timeDisplay">09-July-2025 00:00:00</div></div>
+    <input type="range" id="timeSlider" min="0" max="336" value="0" step="1">
+    <div id="transportBtns">
+      <button class="tbtn" id="resetBtn">↺</button>
+      <button class="tbtn" id="prevBtn">⏮</button>
+      <button class="tbtn" id="playBtn">▶</button>
+      <button class="tbtn" id="nextBtn">⏭</button>
+    </div>
+  </div>
+  <div class="panel-divider"></div>
+
+  <div class="panel">
+    <div class="panel-header"><div class="panel-header-left"><span class="panel-icon">🔄</span><span class="panel-title">Playback Speed</span></div></div>
+    <div id="speedPills">
+      <div class="speed-pill" data-speed="1000">0.5×</div>
+      <div class="speed-pill active" data-speed="500">Normal</div>
+      <div class="speed-pill" data-speed="250">2×</div>
+      <div class="speed-pill" data-speed="125">4×</div>
+    </div>
+  </div>
+  <div class="panel-divider"></div>
+
+  <div class="panel">
+    <div class="panel-header"><div class="panel-header-left"><span class="panel-icon">☰</span><span class="panel-title">Layer Opacity</span></div></div>
+    <div class="opacity-row">
+      <div class="opacity-dot" style="background:#5298A9"></div>
+      <span class="opacity-label">Flood Layer</span>
+      <span class="opacity-value" id="floodOpVal">70%</span>
+    </div>
+    <input type="range" class="opacity-slider" id="floodOpSlider" min="0" max="100" value="70">
+  </div>
+  <div class="panel-divider"></div>
+
+  <!-- ══ SCREENSHOT / EXPORT PANEL ══ -->
+  <div id="exportPanel">
+    <div class="panel-header">
+      <div class="panel-header-left"><span class="panel-icon">📸</span><span class="panel-title">Export Map</span></div>
+      <span class="panel-badge" id="exportFormatBadge">PNG</span>
+    </div>
+
+    <!-- Format selector -->
+    <div class="export-format-row">
+      <div class="fmt-pill active" data-fmt="png">PNG</div>
+      <div class="fmt-pill" data-fmt="jpg">JPG</div>
+    </div>
+
+    <!-- Overlay options -->
+    <div class="export-options">
+      <div class="export-opt">
+        <input type="checkbox" id="optStats" checked>
+        <label for="optStats">Flood Stats</label>
+      </div>
+      <div class="export-opt">
+        <input type="checkbox" id="optTimestamp" checked>
+        <label for="optTimestamp">Timestamp</label>
+      </div>
+      <div class="export-opt">
+        <input type="checkbox" id="optLegend" checked>
+        <label for="optLegend">Legend</label>
+      </div>
+      <div class="export-opt">
+        <input type="checkbox" id="optWatermark" checked>
+        <label for="optWatermark">Watermark</label>
+      </div>
+    </div>
+
+    <button id="captureBtn">
+      <div class="btn-shimmer"></div>
+      <span id="captureBtnIcon">📸</span>
+      <span id="captureBtnText">Capture Map</span>
+    </button>
+    <div id="captureStatus"></div>
+    <div id="previewWrap">
+      <img id="previewImg" src="" alt="Preview">
+      <div class="prev-dl">⬇ Download Again</div>
+    </div>
+  </div>
+  <div class="panel-divider"></div>
+
+  <div class="panel" style="margin-bottom:32px">
+    <div class="panel-header">
+      <div class="panel-header-left"><span class="panel-icon">📍</span><span class="panel-title">Critical Assets</span></div>
+      <span class="panel-badge" id="assetBadge">Loading…</span>
+    </div>
+    <div id="assetGrid">
+      <div class="asset-skel"></div><div class="asset-skel"></div><div class="asset-skel"></div>
+      <div class="asset-skel"></div><div class="asset-skel"></div><div class="asset-skel"></div>
+    </div>
+  </div>
+</div>
+
+<!-- LEGEND -->
+<div id="legend">
+  <div class="legend-header"><span>💧</span><span class="legend-title">Flood Depth</span></div>
+  <div class="legend-row"><div class="legend-swatch" style="background:linear-gradient(135deg,#B1DEE2,#6BC3D2)"></div><span class="legend-range">&lt;0.5m</span><span class="legend-severity">Low</span></div>
+  <div class="legend-row"><div class="legend-swatch" style="background:linear-gradient(135deg,#64B8C1,#5298A9)"></div><span class="legend-range">0.5–1m</span><span class="legend-severity">Mod</span></div>
+  <div class="legend-row"><div class="legend-swatch" style="background:linear-gradient(135deg,#5298A9,#49879A)"></div><span class="legend-range">1–2m</span><span class="legend-severity">High</span></div>
+  <div class="legend-row"><div class="legend-swatch" style="background:linear-gradient(135deg,#49879A,#264351)"></div><span class="legend-range">&gt;2m</span><span class="legend-severity">Severe</span></div>
+</div>
+
+<div id="mapControls">
+  <button class="map-control-btn active" id="toggle3DBtn">🏔️</button>
+  <button class="map-control-btn" id="zoomInBtn">+</button>
+  <button class="map-control-btn" id="zoomOutBtn">−</button>
+</div>
+
+<script>
+  window.FLOODTWIN_CONFIG = {
+    mapplsApiKey: {{ mappls_api_key | tojson }},
+    dataUrls: {
+      polygonIndex: {{ url_for('polygon_index') | tojson }},
+      coordinates:  {{ url_for('coordinates')   | tojson }},
+      chunksBase:   {{ url_for('chunks', filename='') | tojson }}
+    }
+  };
+</script>
+<script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
+</body>
+</html>

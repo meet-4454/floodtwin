@@ -1,385 +1,52 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>3D Flood Twin - AIRESQ</title>
-
-  <script>
-    function loadMapplsSDK(cb) {
-      if (window.mappls && typeof window.mappls.Map === 'function') { cb(); return; }
-      var s = document.createElement('script');
-      s.src = 'https://apis.mappls.com/advancedmaps/api/07ed2c801ad7e2fd64b3fdffd084b0be/map_sdk?v=3.0&layer=vector';
-      s.async = true;
-      s.onload = function() {
-        var t = 0;
-        var check = setInterval(function() {
-          t++;
-          if (window.mappls && typeof window.mappls.Map === 'function') {
-            clearInterval(check); cb();
-          }
-          if (t > 100) { clearInterval(check); cb(); }
-        }, 100);
-      };
-      s.onerror = function() {
-        document.getElementById('loadingProgress').textContent = '❌ Map SDK failed to load. Check network / API key.';
-      };
-      document.head.appendChild(s);
-    }
-
-    function loadThreeJS(cb) {
-      if (window.THREE) { cb(); return; }
-      var s = document.createElement('script');
-      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
-      s.async = true;
-      s.onload = cb;
-      s.onerror = function() { console.warn('Three.js failed to load'); cb(); };
-      document.head.appendChild(s);
-    }
-
-    function loadHtml2Canvas(cb) {
-      if (window.html2canvas) { cb(); return; }
-      var s = document.createElement('script');
-      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-      s.async = true;
-      s.onload = cb;
-      s.onerror = function() { console.warn('html2canvas failed'); cb(); };
-      document.head.appendChild(s);
-    }
-  </script>
-
-  <style>
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{overflow:hidden;font-family:'Segoe UI',system-ui,sans-serif;background:#f8fafc;color:#1e293b}
-    #map{width:100vw;height:100vh}
-
-    /* ── SIDEBAR ── */
-    #sidebar{position:absolute;top:0;left:0;width:20vw;min-width:320px;height:100vh;background:linear-gradient(180deg,#ffffff 0%,#f1f5f9 100%);border-right:2px solid #5298A9;z-index:1000;display:flex;flex-direction:column;transition:transform .30s cubic-bezier(.4,0,.2,1);overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:#5298A9 transparent;box-shadow:4px 0 12px rgba(82,152,169,.15)}
-    #sidebar.collapsed{transform:translateX(-100%)}
-    #sidebar::-webkit-scrollbar{width:8px}
-    #sidebar::-webkit-scrollbar-thumb{background:#B1DEE2;border-radius:4px}
-    #titleBar{padding:18px 24px 16px;flex-shrink:0;border-bottom:1px solid #e2e8f0;text-align:center}
-    #titleBar h1{font-size:28px;font-weight:800;color:#264351;letter-spacing:2px;text-transform:uppercase;line-height:1.1;margin-bottom:6px}
-    #titleBar p{font-size:13px;color:#64748b;line-height:1.4}
-    #searchWrap{padding:16px 24px 10px;flex-shrink:0;position:relative}
-    #searchRow{position:relative}
-    #searchInput{width:100%;height:50px;background:#fff;border:2px solid #B1DEE2;border-radius:10px;padding:0 14px 0 42px;font-size:15px;font-family:inherit;color:#1e293b;outline:none;box-shadow:0 2px 8px rgba(82,152,169,.1);transition:border-color .2s}
-    #searchInput:focus{border-color:#5298A9}
-    #searchInput::placeholder{color:#94a3b8}
-    #srchIcon{position:absolute;left:13px;top:50%;transform:translateY(-50%);font-size:16px;color:#5298A9;pointer-events:none;z-index:2}
-    #searchSuggestions{position:absolute!important;width:100%!important;top:100%!important;left:0!important;background:#fff!important;border:2px solid #B1DEE2!important;border-top:none!important;border-radius:0 0 10px 10px!important;z-index:9999!important;max-height:280px!important;overflow-y:auto!important;box-shadow:0 8px 24px rgba(82,152,169,.2)!important;list-style:none!important;margin:0!important;padding:0!important;display:none}
-    #searchSuggestions li{padding:11px 15px!important;font-size:13px!important;color:#1e293b!important;cursor:pointer!important;border-bottom:1px solid #f1f5f9!important}
-    #searchSuggestions li:hover{background:#eef7f9!important}
-    #collapseBtn{position:absolute;top:50%;right:-20px;transform:translateY(-50%);width:40px;height:40px;background:#fff;border:2px solid #5298A9;border-radius:50%;color:#5298A9;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:1001;box-shadow:2px 2px 8px rgba(82,152,169,.25)}
-    #sidebar.collapsed #collapseBtn{right:-42px}
-    .panel{margin:0 24px 12px;background:#fff;border:2px solid #B1DEE2;border-radius:12px;padding:24px 20px;flex-shrink:0;box-shadow:0 2px 8px rgba(82,152,169,.08)}
-    .panel-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
-    .panel-header-left{display:flex;align-items:center;gap:12px}
-    .panel-icon{font-size:20px;color:#5298A9}
-    .panel-title{font-size:18px;font-weight:700;color:#264351}
-    .panel-badge{font-size:13px;font-weight:700;background:#B1DEE2;color:#264351;padding:4px 12px;border-radius:12px}
-    .panel-divider{height:2px;background:linear-gradient(to right,transparent,#B1DEE2,transparent);margin:4px 24px 8px;flex-shrink:0}
-    #timeBox{background:#f8fafc;border:2px solid #B1DEE2;border-radius:10px;padding:12px 16px;text-align:center;margin-bottom:16px}
-    #timeBoxLabel{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;font-weight:600}
-    #timeDisplay{font-size:18px;font-weight:700;color:#264351;font-variant-numeric:tabular-nums}
-    #timeSlider{-webkit-appearance:none;appearance:none;width:100%;height:8px;border-radius:4px;background:#e2e8f0;outline:none;cursor:pointer;margin-bottom:4px}
-    #timeSlider::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;background:#5298A9;border:3px solid #fff;border-radius:50%;cursor:pointer;box-shadow:0 2px 8px rgba(82,152,169,.4)}
-    #transportBtns{display:flex;gap:10px;justify-content:center;margin-top:16px}
-    .tbtn{width:46px;height:46px;border-radius:50%;background:#fff;border:2px solid #B1DEE2;color:#5298A9;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s}
-    .tbtn:hover{background:#f8fafc;border-color:#5298A9}
-    .tbtn.active{background:#5298A9;border-color:#5298A9;color:#fff}
-    #speedPills{display:flex;gap:8px}
-    .speed-pill{flex:1;padding:10px 0;border-radius:8px;background:#fff;border:2px solid #B1DEE2;color:#5298A9;font-size:13px;font-weight:700;text-align:center;cursor:pointer;transition:all .2s}
-    .speed-pill.active{background:#5298A9;border-color:#5298A9;color:#fff}
-    .opacity-row{display:flex;align-items:center;margin-bottom:10px}
-    .opacity-dot{width:13px;height:13px;border-radius:50%;margin-right:10px;flex-shrink:0;border:2px solid #5298A9}
-    .opacity-label{font-size:14px;color:#264351;flex:1;font-weight:600}
-    .opacity-value{font-size:13px;color:#5298A9;font-weight:700;width:40px;text-align:right}
-    .opacity-slider{-webkit-appearance:none;appearance:none;width:100%;height:6px;border-radius:3px;background:#e2e8f0;outline:none;cursor:pointer;margin-top:8px}
-    .opacity-slider::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;background:#5298A9;border:3px solid #fff;border-radius:50%;cursor:pointer}
-    #assetGrid{display:grid;grid-template-columns:1fr;gap:8px}
-    .asset-pill{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:10px;background:#fff;border:2px solid #B1DEE2;cursor:pointer;transition:all .2s;user-select:none;min-height:46px}
-    .asset-pill:hover{border-color:#5298A9;background:#f8fafc}
-    .asset-pill.on{border-color:var(--pill-accent);background:color-mix(in srgb,var(--pill-accent) 8%,#fff)}
-    .pill-icon{font-size:17px;flex-shrink:0}
-    .pill-label{font-size:13px;font-weight:700;color:#5298A9;flex:1}
-    .asset-pill.on .pill-label{color:#264351}
-    .pill-count{font-size:11px;font-weight:700;background:#e2e8f0;color:#64748b;padding:2px 8px;border-radius:10px;flex-shrink:0;display:none}
-    .asset-pill.on .pill-count{display:block}
-    @keyframes skel{0%,100%{opacity:.2}50%{opacity:.45}}
-    .asset-skel{height:46px;border-radius:10px;background:#e2e8f0;animation:skel 1.4s ease infinite}
-
-    /* ── SCREENSHOT PANEL ── */
-    #exportPanel{margin:0 24px 12px;background:#fff;border:2px solid #B1DEE2;border-radius:12px;padding:20px;flex-shrink:0;box-shadow:0 2px 8px rgba(82,152,169,.08)}
-    #exportPanel .panel-header{margin-bottom:14px}
-    .export-format-row{display:flex;gap:8px;margin-bottom:14px}
-    .fmt-pill{flex:1;padding:9px 0;border-radius:8px;background:#fff;border:2px solid #B1DEE2;color:#5298A9;font-size:12px;font-weight:700;text-align:center;cursor:pointer;transition:all .2s;letter-spacing:.5px}
-    .fmt-pill.active{background:#5298A9;border-color:#5298A9;color:#fff}
-    .export-options{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
-    .export-opt{display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:8px;border:2px solid #B1DEE2;background:#f8fafc;cursor:pointer;transition:border-color .2s;user-select:none}
-    .export-opt input[type=checkbox]{width:15px;height:15px;accent-color:#5298A9;cursor:pointer;flex-shrink:0}
-    .export-opt label{font-size:12px;font-weight:600;color:#264351;cursor:pointer;line-height:1.3}
-    .export-opt:has(input:checked){border-color:#5298A9;background:#eef7f9}
-    #captureBtn{width:100%;height:52px;border-radius:10px;background:linear-gradient(135deg,#5298A9,#264351);border:none;color:#fff;font-size:15px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;letter-spacing:.5px;box-shadow:0 4px 14px rgba(82,152,169,.4);transition:all .2s;position:relative;overflow:hidden}
-    #captureBtn:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(82,152,169,.5)}
-    #captureBtn:active{transform:translateY(0)}
-    #captureBtn:disabled{opacity:.6;cursor:not-allowed;transform:none}
-    #captureBtn .btn-shimmer{position:absolute;inset:0;background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,.15) 50%,transparent 100%);transform:translateX(-100%);transition:transform .6s}
-    #captureBtn:hover .btn-shimmer{transform:translateX(100%)}
-    #captureStatus{margin-top:10px;font-size:12px;color:#5298A9;font-weight:600;text-align:center;min-height:18px;transition:opacity .3s}
-    /* Preview thumbnail */
-    #previewWrap{margin-top:12px;display:none;border:2px solid #B1DEE2;border-radius:10px;overflow:hidden;position:relative;cursor:pointer}
-    #previewWrap img{width:100%;display:block;border-radius:8px}
-    #previewWrap .prev-dl{position:absolute;inset:0;background:rgba(38,67,81,.7);display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .2s;font-size:13px;font-weight:700;color:#fff;gap:6px;border-radius:8px}
-    #previewWrap:hover .prev-dl{opacity:1}
-
-    /* ── CAPTURE OVERLAY (watermark card rendered off-screen) ── */
-    #captureOverlay{position:fixed;left:-9999px;top:-9999px;width:800px;background:transparent;pointer-events:none;z-index:-1}
-    #statsCard{background:linear-gradient(135deg,rgba(38,67,81,.97) 0%,rgba(18,42,55,.98) 100%);border:1.5px solid rgba(82,152,169,.6);border-radius:16px;padding:20px 22px;min-width:300px;font-family:'Segoe UI',system-ui,sans-serif;box-shadow:0 8px 32px rgba(0,0,0,.5)}
-    #statsCard .sc-title{font-size:11px;font-weight:700;color:#B1DEE2;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px;display:flex;align-items:center;gap:8px}
-    #statsCard .sc-time{font-size:15px;font-weight:700;color:#fff;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid rgba(82,152,169,.3)}
-    #statsCard .sc-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
-    #statsCard .sc-swatch{width:12px;height:12px;border-radius:3px;flex-shrink:0}
-    #statsCard .sc-label{font-size:12px;color:#94a3b8;flex:1}
-    #statsCard .sc-val{font-size:12px;font-weight:700;color:#fff}
-    #statsCard .sc-brand{font-size:10px;color:rgba(177,222,226,.5);margin-top:14px;padding-top:10px;border-top:1px solid rgba(82,152,169,.2);letter-spacing:1px;text-transform:uppercase}
-
-    /* ── MAP MARKERS & POPUPS ── */
-    .osm-marker{width:32px;height:32px;border-radius:50% 50% 50% 4px;border:3px solid #fff;display:flex;align-items:center;justify-content:center;font-size:15px;cursor:pointer;box-shadow:0 3px 10px rgba(0,0,0,.3);position:fixed;z-index:500;transform:translate(-50%,-100%);user-select:none}
-    .osm-marker:hover{transform:translate(-50%,-100%) scale(1.15)}
-    .osm-popup{position:fixed;background:#fff;border:2px solid #5298A9;border-radius:12px;color:#264351;padding:12px 14px;font-size:13px;box-shadow:0 4px 20px rgba(82,152,169,.3);max-width:220px;z-index:3000;pointer-events:auto}
-    .popup-name{font-weight:700;color:#264351;margin-bottom:3px;font-size:14px;padding-right:18px}
-    .popup-type{font-size:11px;color:#5298A9;text-transform:uppercase;letter-spacing:.5px;font-weight:700}
-    .popup-addr{font-size:11px;color:#64748b;margin-top:5px;padding-top:5px;border-top:1px solid #e2e8f0}
-    .popup-close{position:absolute;top:5px;right:8px;background:none;border:none;font-size:15px;cursor:pointer;color:#94a3b8}
-
-    /* ── FLOOD POPUP ── */
-    #floodPopup{position:fixed;z-index:99999;pointer-events:auto;display:none;transform:translate(-50%,-100%);animation:fpIn .18s cubic-bezier(.34,1.56,.64,1)}
-    @keyframes fpIn{from{opacity:0;transform:translate(-50%,-88%)}to{opacity:1;transform:translate(-50%,-100%)}}
-    #floodPopup .fp-card{background:#fff;border:2px solid #5298A9;border-radius:14px;padding:14px 18px 13px;box-shadow:0 8px 28px rgba(82,152,169,.35);min-width:190px;position:relative}
-    #floodPopup .fp-card::after{content:'';position:absolute;bottom:-11px;left:50%;transform:translateX(-50%);border:10px solid transparent;border-top-color:#5298A9}
-    #floodPopup .fp-card::before{content:'';position:absolute;bottom:-8px;left:50%;transform:translateX(-50%);border:8px solid transparent;border-top-color:#fff;z-index:1}
-    #floodPopup .fp-close{position:absolute;top:7px;right:9px;background:none;border:none;font-size:14px;cursor:pointer;color:#94a3b8;padding:2px 5px;border-radius:4px}
-    #floodPopup .fp-head{display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-right:18px}
-    #floodPopup .fp-head-title{font-size:12px;font-weight:700;color:#5298A9;text-transform:uppercase;letter-spacing:.8px}
-    #floodPopup .fp-depth{display:flex;align-items:baseline;gap:5px;margin-bottom:8px}
-    #floodPopup .fp-depth-val{font-size:30px;font-weight:800;color:#264351;line-height:1}
-    #floodPopup .fp-depth-unit{font-size:13px;font-weight:600;color:#64748b}
-    #floodPopup .fp-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 11px;border-radius:20px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px}
-    #floodPopup .fp-badge .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
-    #floodPopup .fp-divider{height:1px;background:#e2e8f0;margin:0 0 8px}
-    #floodPopup .fp-meta{font-size:11px;color:#64748b;line-height:1.7}
-    #floodPopup .fp-meta b{color:#475569}
-
-    /* ── LEGEND ── */
-    #legend{position:fixed;bottom:28px;left:28px;background:rgba(255,255,255,.92);backdrop-filter:blur(12px);border:1.5px solid rgba(82,152,169,.5);border-radius:11px;padding:9px 11px;z-index:999;min-width:140px;box-shadow:0 3px 14px rgba(82,152,169,.18)}
-    .legend-header{display:flex;align-items:center;gap:6px;margin-bottom:7px}
-    .legend-title{font-size:12px;font-weight:700;color:#264351}
-    .legend-row{display:flex;align-items:center;margin-bottom:5px;gap:6px}
-    .legend-row:last-child{margin-bottom:0}
-    .legend-swatch{width:26px;height:12px;border-radius:4px;flex-shrink:0}
-    .legend-range{font-size:11px;color:#264351;flex:1;font-weight:700}
-    .legend-severity{font-size:10px;font-weight:700;color:#264351;text-transform:uppercase;letter-spacing:.3px}
-
-    /* ── CONTROLS ── */
-    #mapControls{position:fixed;bottom:28px;right:28px;display:flex;flex-direction:column;gap:10px;z-index:998}
-    .map-control-btn{width:44px;height:44px;background:rgba(255,255,255,.95);border:2px solid #5298A9;border-radius:10px;color:#5298A9;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;box-shadow:0 3px 12px rgba(82,152,169,.25)}
-    .map-control-btn:hover{background:#f8fafc;transform:scale(1.05)}
-    .map-control-btn.active{background:#5298A9;color:#fff}
-
-    /* ── LOADING OVERLAY ── */
-    #loadingOverlay{position:fixed;inset:0;background:rgba(255,255,255,.96);display:flex;align-items:center;justify-content:center;z-index:10000;flex-direction:column}
-    #loadingOverlay.hidden{display:none}
-    .spinner{border:5px solid #e2e8f0;border-top:5px solid #5298A9;border-radius:50%;width:50px;height:50px;animation:spin .8s linear infinite;margin:0 auto 20px}
-    @keyframes spin{to{transform:rotate(360deg)}}
-    .loader{text-align:center;color:#264351}
-    .loader h2{font-size:24px;margin-top:16px;font-weight:700}
-    #loadingProgress{font-size:14px;color:#64748b;margin-top:8px;font-weight:600}
-    #chunkLoadingIndicator{position:fixed;bottom:130px;right:28px;background:rgba(255,255,255,.95);border:2px solid #5298A9;color:#5298A9;padding:10px 16px;border-radius:10px;font-size:14px;z-index:997;display:none;font-weight:600}
-    #hamburgerBtn{position:fixed;top:22px;left:22px;width:48px;height:48px;z-index:1002;background:rgba(255,255,255,.95);border:2px solid #5298A9;border-radius:12px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;box-shadow:0 3px 12px rgba(82,152,169,.25)}
-    #hamburgerBtn span{display:block;width:24px;height:3px;background:#5298A9;border-radius:2px}
-    #hamburgerBtn.open{opacity:0;pointer-events:none}
-    .search-pin{position:fixed;z-index:600;transform:translate(-50%,-100%);font-size:28px;pointer-events:none;filter:drop-shadow(0 3px 6px rgba(82,152,169,.5));animation:pinDrop .3s ease-out}
-    @keyframes pinDrop{from{transform:translate(-50%,-130%);opacity:0}to{transform:translate(-50%,-100%);opacity:1}}
-    .mappls-copyright,.maplibregl-ctrl-attrib,.mappls-ctrl-attrib,[class*="mappls-ctrl"],[class*="maplibre-ctrl-attrib"],.maplibregl-ctrl-bottom-left,.maplibregl-ctrl-bottom-right,.mappls-ctrl-bottom-left,.mappls-ctrl-bottom-right{display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important}
-
-    /* ── CAPTURE FLASH EFFECT ── */
-    @keyframes flashCapture{0%{opacity:0}20%{opacity:.8}100%{opacity:0}}
-    #captureFlash{position:fixed;inset:0;background:#fff;pointer-events:none;z-index:99998;opacity:0;display:none}
-    #captureFlash.flash{display:block;animation:flashCapture .5s ease-out forwards}
-  </style>
-</head>
-<body>
-
-<button id="hamburgerBtn" class="open"><span></span><span></span><span></span></button>
-<div id="captureFlash"></div>
-
-<div id="loadingOverlay">
-  <div class="loader">
-    <div class="spinner"></div>
-    <h2>Initializing Flood Visualization…</h2>
-    <p id="loadingProgress">Loading map SDK…</p>
-  </div>
-</div>
-
-<div id="map"></div>
-<div id="chunkLoadingIndicator">Loading timestep data…</div>
-
-<!-- FLOOD DEPTH POPUP -->
-<div id="floodPopup">
-  <div class="fp-card">
-    <button class="fp-close" id="fpClose">✕</button>
-    <div class="fp-head"><span>💧</span><span class="fp-head-title">Flood Depth</span></div>
-    <div class="fp-depth"><span class="fp-depth-val" id="fpVal">—</span><span class="fp-depth-unit">metres</span></div>
-    <div class="fp-badge" id="fpBadge"><span class="dot" id="fpDot"></span><span id="fpLabel">—</span></div>
-    <div class="fp-divider"></div>
-    <div class="fp-meta"><b>Time:</b> <span id="fpTime">—</span><br><b>Location:</b> <span id="fpCoords">—</span></div>
-  </div>
-</div>
-
-<!-- OFF-SCREEN STATS CARD for screenshot overlay -->
-<div id="captureOverlay">
-  <div id="statsCard">
-    <div class="sc-title">📸 FloodTwin Export · AIRESQ</div>
-    <div class="sc-time" id="scTime">—</div>
-    <div class="sc-row"><div class="sc-swatch" style="background:#6BC3D2"></div><span class="sc-label">Low (&lt;0.5m)</span><span class="sc-val" id="scLow">—</span></div>
-    <div class="sc-row"><div class="sc-swatch" style="background:#5298A9"></div><span class="sc-label">Moderate (0.5–1m)</span><span class="sc-val" id="scMod">—</span></div>
-    <div class="sc-row"><div class="sc-swatch" style="background:#49879A"></div><span class="sc-label">High (1–2m)</span><span class="sc-val" id="scHigh">—</span></div>
-    <div class="sc-row"><div class="sc-swatch" style="background:#264351"></div><span class="sc-label">Severe (&gt;2m)</span><span class="sc-val" id="scSevere">—</span></div>
-    <div class="sc-brand">airesq.com · flood digital twin</div>
-  </div>
-</div>
-
-<!-- SIDEBAR -->
-<div id="sidebar">
-  <button id="collapseBtn">‹</button>
-
-  <div id="titleBar">
-    <h1>Flood Twin</h1>
-    <p>3D Immersive Flood Visualization Engine</p>
-  </div>
-
-  <div id="searchWrap">
-    <div id="searchRow">
-      <span id="srchIcon">🔍</span>
-      <input id="searchInput" type="text" placeholder="Search location… (or click map)" autocomplete="off" spellcheck="false">
-      <ul id="searchSuggestions"></ul>
-    </div>
-  </div>
-
-  <div class="panel">
-    <div class="panel-header">
-      <div class="panel-header-left"><span class="panel-icon">🕐</span><span class="panel-title">Time Control</span></div>
-    </div>
-    <div id="timeBox"><div id="timeBoxLabel">Current Time</div><div id="timeDisplay">09-July-2025 00:00:00</div></div>
-    <input type="range" id="timeSlider" min="0" max="336" value="0" step="1">
-    <div id="transportBtns">
-      <button class="tbtn" id="resetBtn">↺</button>
-      <button class="tbtn" id="prevBtn">⏮</button>
-      <button class="tbtn" id="playBtn">▶</button>
-      <button class="tbtn" id="nextBtn">⏭</button>
-    </div>
-  </div>
-  <div class="panel-divider"></div>
-
-  <div class="panel">
-    <div class="panel-header"><div class="panel-header-left"><span class="panel-icon">🔄</span><span class="panel-title">Playback Speed</span></div></div>
-    <div id="speedPills">
-      <div class="speed-pill" data-speed="1000">0.5×</div>
-      <div class="speed-pill active" data-speed="500">Normal</div>
-      <div class="speed-pill" data-speed="250">2×</div>
-      <div class="speed-pill" data-speed="125">4×</div>
-    </div>
-  </div>
-  <div class="panel-divider"></div>
-
-  <div class="panel">
-    <div class="panel-header"><div class="panel-header-left"><span class="panel-icon">☰</span><span class="panel-title">Layer Opacity</span></div></div>
-    <div class="opacity-row">
-      <div class="opacity-dot" style="background:#5298A9"></div>
-      <span class="opacity-label">Flood Layer</span>
-      <span class="opacity-value" id="floodOpVal">70%</span>
-    </div>
-    <input type="range" class="opacity-slider" id="floodOpSlider" min="0" max="100" value="70">
-  </div>
-  <div class="panel-divider"></div>
-
-  <!-- ══ SCREENSHOT / EXPORT PANEL ══ -->
-  <div id="exportPanel">
-    <div class="panel-header">
-      <div class="panel-header-left"><span class="panel-icon">📸</span><span class="panel-title">Export Map</span></div>
-      <span class="panel-badge" id="exportFormatBadge">PNG</span>
-    </div>
-
-    <!-- Format selector -->
-    <div class="export-format-row">
-      <div class="fmt-pill active" data-fmt="png">PNG</div>
-      <div class="fmt-pill" data-fmt="jpg">JPG</div>
-    </div>
-
-    <!-- Overlay options -->
-    <div class="export-options">
-      <div class="export-opt">
-        <input type="checkbox" id="optStats" checked>
-        <label for="optStats">Flood Stats</label>
-      </div>
-      <div class="export-opt">
-        <input type="checkbox" id="optTimestamp" checked>
-        <label for="optTimestamp">Timestamp</label>
-      </div>
-      <div class="export-opt">
-        <input type="checkbox" id="optLegend" checked>
-        <label for="optLegend">Legend</label>
-      </div>
-      <div class="export-opt">
-        <input type="checkbox" id="optWatermark" checked>
-        <label for="optWatermark">Watermark</label>
-      </div>
-    </div>
-
-    <button id="captureBtn">
-      <div class="btn-shimmer"></div>
-      <span id="captureBtnIcon">📸</span>
-      <span id="captureBtnText">Capture Map</span>
-    </button>
-    <div id="captureStatus"></div>
-    <div id="previewWrap">
-      <img id="previewImg" src="" alt="Preview">
-      <div class="prev-dl">⬇ Download Again</div>
-    </div>
-  </div>
-  <div class="panel-divider"></div>
-
-  <div class="panel" style="margin-bottom:32px">
-    <div class="panel-header">
-      <div class="panel-header-left"><span class="panel-icon">📍</span><span class="panel-title">Critical Assets</span></div>
-      <span class="panel-badge" id="assetBadge">Loading…</span>
-    </div>
-    <div id="assetGrid">
-      <div class="asset-skel"></div><div class="asset-skel"></div><div class="asset-skel"></div>
-      <div class="asset-skel"></div><div class="asset-skel"></div><div class="asset-skel"></div>
-    </div>
-  </div>
-</div>
-
-<!-- LEGEND -->
-<div id="legend">
-  <div class="legend-header"><span>💧</span><span class="legend-title">Flood Depth</span></div>
-  <div class="legend-row"><div class="legend-swatch" style="background:linear-gradient(135deg,#B1DEE2,#6BC3D2)"></div><span class="legend-range">&lt;0.5m</span><span class="legend-severity">Low</span></div>
-  <div class="legend-row"><div class="legend-swatch" style="background:linear-gradient(135deg,#64B8C1,#5298A9)"></div><span class="legend-range">0.5–1m</span><span class="legend-severity">Mod</span></div>
-  <div class="legend-row"><div class="legend-swatch" style="background:linear-gradient(135deg,#5298A9,#49879A)"></div><span class="legend-range">1–2m</span><span class="legend-severity">High</span></div>
-  <div class="legend-row"><div class="legend-swatch" style="background:linear-gradient(135deg,#49879A,#264351)"></div><span class="legend-range">&gt;2m</span><span class="legend-severity">Severe</span></div>
-</div>
-
-<div id="mapControls">
-  <button class="map-control-btn active" id="toggle3DBtn">🏔️</button>
-  <button class="map-control-btn" id="zoomInBtn">+</button>
-  <button class="map-control-btn" id="zoomOutBtn">−</button>
-</div>
-
-<script>
 (function(){
 'use strict';
+
+const CFG = window.FLOODTWIN_CONFIG || {
+  mapplsApiKey: '',
+  dataUrls: { polygonIndex:'/polygon_index.json', coordinates:'/coordinates.bin', chunksBase:'/chunks/' }
+};
+
+// ── External SDK loaders ──────────────────────────────────────────────────────
+function loadMapplsSDK(cb) {
+  if (window.mappls && typeof window.mappls.Map === 'function') { cb(); return; }
+  if (!CFG.mapplsApiKey) {
+    setStatus('❌ Mappls API key not configured on server (MAPPLS_API_KEY).');
+    return;
+  }
+  var s = document.createElement('script');
+  s.src = 'https://apis.mappls.com/advancedmaps/api/' + encodeURIComponent(CFG.mapplsApiKey) + '/map_sdk?v=3.0&layer=vector';
+  s.async = true;
+  s.onload = function() {
+    var t = 0;
+    var check = setInterval(function() {
+      t++;
+      if (window.mappls && typeof window.mappls.Map === 'function') { clearInterval(check); cb(); }
+      if (t > 100) { clearInterval(check); cb(); }
+    }, 100);
+  };
+  s.onerror = function() { setStatus('❌ Map SDK failed to load. Check network / API key.'); };
+  document.head.appendChild(s);
+}
+
+function loadThreeJS(cb) {
+  if (window.THREE) { cb(); return; }
+  var s = document.createElement('script');
+  s.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
+  s.async = true;
+  s.onload = cb;
+  s.onerror = function() { console.warn('Three.js failed to load'); cb(); };
+  document.head.appendChild(s);
+}
+
+function loadHtml2Canvas(cb) {
+  if (window.html2canvas) { cb(); return; }
+  var s = document.createElement('script');
+  s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+  s.async = true;
+  s.onload = cb;
+  s.onerror = function() { console.warn('html2canvas failed'); cb(); };
+  document.head.appendChild(s);
+}
 
 const CHUNK_SIZE=10,TOTAL_CHUNKS=34,MAX_CACHED=3,TOTAL_STEPS=336;
 const REF_LAT=28.4595,REF_LNG=77.0266;
@@ -393,10 +60,15 @@ let waterMeshes=[],polygonCount=0,coordinatesBuffer=null;
 let is3DMode=false;
 const chunkCache=new Map(),chunkQueue=new Set();
 let polygonRings=null;
-let lastDepths=null; // store for screenshot stats
+let lastDepths=null;
 
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+function setStatus(t){
+  const el=document.getElementById('loadingProgress');
+  if(el)el.textContent=t;
+}
 
 // ── Polygon ring data ─────────────────────────────────────────────────────────
 function buildPolygonRings(){
@@ -723,12 +395,12 @@ function buildMesh(depths){
 async function initializeVisualization(){
   try{
     setStatus('10% – Loading metadata…');
-    const ir=await fetch('polygon_index.json');
+    const ir=await fetch(CFG.dataUrls.polygonIndex);
     if(!ir.ok)throw new Error(`polygon_index.json → HTTP ${ir.status}`);
     polygonCount=(await ir.json()).length;
 
     setStatus('30% – Loading coordinates…');
-    const cr=await fetch('coordinates.bin');
+    const cr=await fetch(CFG.dataUrls.coordinates);
     if(!cr.ok)throw new Error(`coordinates.bin → HTTP ${cr.status}`);
     coordinatesBuffer=await cr.arrayBuffer();
     buildPolygonRings();
@@ -745,14 +417,13 @@ async function initializeVisualization(){
     document.querySelector('#loadingOverlay .spinner').style.display='none';
   }
 }
-function setStatus(t){document.getElementById('loadingProgress').textContent=t;}
 
 async function loadChunk(idx){
   if(chunkCache.has(idx))return;
   if(chunkQueue.has(idx)){while(chunkQueue.has(idx))await sleep(50);return;}
   chunkQueue.add(idx);
-  try{ 
-    const r=await fetch(`chunks/chunk_${String(idx).padStart(3,'0')}.bin`);
+  try{
+    const r=await fetch(`${CFG.dataUrls.chunksBase}chunk_${String(idx).padStart(3,'0')}.bin`);
     if(!r.ok)throw new Error(`chunk_${idx}`);
     const v=new Float32Array(await r.arrayBuffer());
     const d={},s=idx*CHUNK_SIZE,e=Math.min(s+CHUNK_SIZE,TOTAL_STEPS+1);
@@ -793,7 +464,6 @@ async function updateStep(step){
 let exportFormat = 'png';
 let lastDataUrl = null;
 
-// Format pills
 document.querySelectorAll('.fmt-pill').forEach(p => {
   p.addEventListener('click', () => {
     document.querySelectorAll('.fmt-pill').forEach(x => x.classList.remove('active'));
@@ -803,7 +473,6 @@ document.querySelectorAll('.fmt-pill').forEach(p => {
   });
 });
 
-// Preview click → re-download
 document.getElementById('previewWrap').addEventListener('click', () => {
   if(lastDataUrl) triggerDownload(lastDataUrl, exportFormat);
 });
@@ -825,11 +494,10 @@ function triggerDownload(dataUrl, fmt) {
 function flashScreen() {
   const fl = document.getElementById('captureFlash');
   fl.classList.remove('flash');
-  void fl.offsetWidth; // reflow
+  void fl.offsetWidth;
   fl.classList.add('flash');
 }
 
-// Compute flood stats from current depths
 function computeFloodStats(depths) {
   if (!depths) return { low:0, mod:0, high:0, severe:0, total:0, wetPct:'0' };
   let low=0, mod=0, high=0, severe=0, wet=0;
@@ -846,7 +514,6 @@ function computeFloodStats(depths) {
   return { low, mod, high, severe, total, wet, wetPct: total ? (wet/total*100).toFixed(1) : '0' };
 }
 
-// Populate the off-screen stats card before capture
 function populateStatsCard(stats) {
   document.getElementById('scTime').textContent = '⏱ ' + document.getElementById('timeDisplay').textContent;
   const fmt = n => n.toLocaleString();
@@ -874,28 +541,23 @@ async function captureMap() {
   const mimeType     = fmt === 'jpg' ? 'image/jpeg' : 'image/png';
 
   try {
-    // Step 1: grab the map canvas directly
     setCaptureStatus('Reading map canvas…');
     const mapCanvas = document.querySelector('#map canvas');
     if (!mapCanvas) throw new Error('Map canvas not found');
 
-    // Trigger a repaint so WebGL is up to date
     if (glMap) try { glMap.triggerRepaint(); } catch(e) {}
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
     const W = mapCanvas.width  || window.innerWidth;
     const H = mapCanvas.height || window.innerHeight;
 
-    // Step 2: create composite canvas
     const canvas = document.createElement('canvas');
     canvas.width  = W;
     canvas.height = H;
     const ctx = canvas.getContext('2d');
 
-    // Draw map
     ctx.drawImage(mapCanvas, 0, 0, W, H);
 
-    // Step 3: optionally overlay legend (re-capture from DOM)
     if (optLegend && window.html2canvas) {
       setCaptureStatus('Rendering legend…');
       const legendEl = document.getElementById('legend');
@@ -911,13 +573,11 @@ async function captureMap() {
       } catch(e) { console.warn('legend capture failed', e); }
     }
 
-    // Step 4: stats card overlay
     if (optStats && window.html2canvas) {
       setCaptureStatus('Rendering stats card…');
       const stats = computeFloodStats(lastDepths);
       populateStatsCard(stats);
       const statsEl = document.getElementById('statsCard');
-      // Move it temporarily to screen to allow html2canvas to read it
       statsEl.style.position = 'fixed';
       statsEl.style.left = '-3000px';
       statsEl.style.top  = '50px';
@@ -930,7 +590,6 @@ async function captureMap() {
         const sw = sc.width  / 2;
         const sh = sc.height / 2;
         const margin = 28;
-        // Position: bottom-right, above the map controls
         ctx.drawImage(sc, W - sw - margin, H - sh - margin - 80, sw, sh);
       } catch(e) { console.warn('stats card capture failed', e); }
       statsEl.style.position = 'fixed';
@@ -938,14 +597,12 @@ async function captureMap() {
       statsEl.style.top  = '-9999px';
     }
 
-    // Step 5: timestamp text overlay (lightweight, no html2canvas needed)
     if (optTimestamp) {
       const ts = document.getElementById('timeDisplay').textContent;
       const pad = 16;
       ctx.save();
       ctx.font = 'bold 15px "Segoe UI", system-ui, sans-serif';
       const tw = ctx.measureText(ts).width;
-      // pill background top-right
       const rx = W - tw - pad*2 - 20;
       const ry = 20;
       const rw = tw + pad*2;
@@ -963,7 +620,6 @@ async function captureMap() {
       ctx.restore();
     }
 
-    // Step 6: watermark
     if (optWatermark) {
       ctx.save();
       ctx.globalAlpha = 0.45;
@@ -971,23 +627,19 @@ async function captureMap() {
       ctx.fillStyle = '#fff';
       ctx.textAlign = 'right';
       ctx.textBaseline = 'bottom';
-      // subtle shadow
       ctx.shadowColor = 'rgba(0,0,0,0.6)';
       ctx.shadowBlur = 4;
       ctx.fillText('airesq.com · FloodTwin', W - 12, H - 12);
       ctx.restore();
     }
 
-    // Step 7: export
     setCaptureStatus('Encoding image…');
     const dataUrl = canvas.toDataURL(mimeType, quality);
     lastDataUrl = dataUrl;
 
-    // Flash + download
     flashScreen();
     triggerDownload(dataUrl, fmt);
 
-    // Show preview
     const prev = document.getElementById('previewImg');
     prev.src = dataUrl;
     document.getElementById('previewWrap').style.display = 'block';
@@ -1111,6 +763,3 @@ loadThreeJS(()=>{
 });
 
 })();
-</script>
-</body>
-</html>
