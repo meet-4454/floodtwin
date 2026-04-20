@@ -53,6 +53,10 @@ const REF_LAT=28.4595,REF_LNG=77.0266;
 const NOM_UA='FloodTwin/1.0';
 const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
 
+const GRID_W=512,GRID_H=512;
+const PLANE_SEG=384;
+const DEPTH_MAX=3.0;
+
 let map,glMap,scene,camera,renderer,modelTransform;
 let currentStep=0,isPlaying=false,playInterval=null,playSpeed=500;
 let floodOpacity=0.70,depthScale=1.0;
@@ -61,6 +65,9 @@ let is3DMode=false;
 const chunkCache=new Map(),chunkQueue=new Set();
 let polygonRings=null;
 let lastDepths=null;
+let gridMinX=0,gridMaxX=0,gridMinZ=0,gridMaxZ=0;
+let polyToTexel=null,depthGrid=null,depthTexture=null;
+let waterSurfaceBuilt=false,waterMaterial=null;
 
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -94,10 +101,10 @@ function pointInPolygon(lng,lat,ring){
 
 // ── Flood popup ───────────────────────────────────────────────────────────────
 const SEV=[
-  {max:0.5,label:'Low',bg:'#e6f7f9',color:'#0e7490',dot:'#6BC3D2'},
-  {max:1.0,label:'Moderate',bg:'#cceef5',color:'#0369a1',dot:'#5298A9'},
-  {max:2.0,label:'High',bg:'#b3dde8',color:'#155e75',dot:'#49879A'},
-  {max:Infinity,label:'Severe',bg:'#264351',color:'#fff',dot:'#264351'}
+  {max:0.5,label:'Low',bg:'#e6f7f9',color:'#0e7490',dot:'#B3EBF7'},
+  {max:1.0,label:'Moderate',bg:'#cceef5',color:'#0369a1',dot:'#7BCFEE'},
+  {max:2.0,label:'High',bg:'#b3dde8',color:'#155e75',dot:'#4B93C8'},
+  {max:Infinity,label:'Severe',bg:'#264351',color:'#fff',dot:'#0D2E61'}
 ];
 const fpPopup=document.getElementById('floodPopup');
 let fpLat=null,fpLng=null;
@@ -274,29 +281,117 @@ function flyPin(lat,lng,name){
 
 // ── THREE.JS custom layer ─────────────────────────────────────────────────────
 const VERT_SRC=`
-uniform float uTime;attribute float aDepth;varying float vDepth;varying vec3 vWP;
-void main(){vDepth=aDepth;vWP=position;
-float r=sin(position.x*22000.+uTime*1.3)*.0000014+cos(position.z*28000.+uTime*.95)*.0000011;
-vec3 p=position;p.y+=r*clamp(aDepth*.5,0.,2.);
-gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}`;
+uniform float uTime;
+uniform sampler2D uDepthTex;
+uniform float uWaveAmp;
+varying float vDepth;
+varying vec2 vUv;
+varying vec3 vWP;
+
+void main(){
+  vUv = uv;
+  float depth = texture2D(uDepthTex, uv).r;
+  vDepth = depth;
+  float df = smoothstep(0.0, 0.25, depth);
+  float t = uTime;
+  vec3 p = position;
+  float w = sin(p.x*0.55 + t*1.7) * cos(p.z*0.60 + t*1.2)
+          + 0.55*sin((p.x*0.90 - p.z*0.70)*0.85 + t*1.45);
+  p.y = w * uWaveAmp * df;
+  vWP = p;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(p,1.0);
+}`;
 
 const FRAG_SRC=`
-uniform float uTime;uniform float uOpacity;varying float vDepth;varying vec3 vWP;
+uniform float uTime;
+uniform float uOpacity;
+uniform float uMaxDepth;
+uniform sampler2D uDepthTex;
+uniform vec2 uTexelSize;
+varying float vDepth;
+varying vec2 vUv;
+varying vec3 vWP;
+
 float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
-float noise(vec2 p){vec2 i=floor(p);vec2 f=fract(p);f=f*f*(3.-2.*f);
-return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);}
-float fbm(vec2 p){float v=0.,a=.5;for(int i=0;i<4;i++){v+=a*noise(p);p=p*2.1+vec2(1.7,9.2);a*=.5;}return v;}
+float noise(vec2 p){
+  vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
+  return mix(mix(hash(i),hash(i+vec2(1.,0.)),f.x),
+             mix(hash(i+vec2(0.,1.)),hash(i+vec2(1.,1.)),f.x), f.y);
+}
+float fbm(vec2 p){
+  float v=0.0, a=0.5;
+  for(int i=0;i<4;i++){ v+=a*noise(p); p=p*2.1+vec2(1.7,9.2); a*=0.5; }
+  return v;
+}
+
+float sampleSoft(vec2 c){
+  float s = 0.0;
+  s += texture2D(uDepthTex, c + uTexelSize*vec2(-1.0,-1.0)).r;
+  s += texture2D(uDepthTex, c + uTexelSize*vec2( 0.0,-1.0)).r;
+  s += texture2D(uDepthTex, c + uTexelSize*vec2( 1.0,-1.0)).r;
+  s += texture2D(uDepthTex, c + uTexelSize*vec2(-1.0, 0.0)).r;
+  s += texture2D(uDepthTex, c).r;
+  s += texture2D(uDepthTex, c + uTexelSize*vec2( 1.0, 0.0)).r;
+  s += texture2D(uDepthTex, c + uTexelSize*vec2(-1.0, 1.0)).r;
+  s += texture2D(uDepthTex, c + uTexelSize*vec2( 0.0, 1.0)).r;
+  s += texture2D(uDepthTex, c + uTexelSize*vec2( 1.0, 1.0)).r;
+  return s * 0.111111;
+}
+
+vec3 gradient4(float d){
+  vec3 c0 = vec3(0.70, 0.92, 0.97);
+  vec3 c1 = vec3(0.38, 0.72, 0.90);
+  vec3 c2 = vec3(0.16, 0.42, 0.72);
+  vec3 c3 = vec3(0.05, 0.18, 0.38);
+  if(d < 0.25) return mix(c0, c1, d / 0.25);
+  if(d < 0.60) return mix(c1, c2, (d - 0.25) / 0.35);
+  return mix(c2, c3, clamp((d - 0.60) / 0.40, 0.0, 1.0));
+}
+
 void main(){
-if(vDepth<=0.)discard;
-vec2 uv=vWP.xz*26000.;float t=uTime*.16;
-float wA=fbm(uv*1.05+vec2(t*.85,t*.60));
-float wB=fbm(uv*.80+vec2(-t*.65,t*.75)+vec2(4.1,2.3));
-float caustic=pow(1.-pow(abs(wA-wB),.5),3.5);
-float d=clamp(vDepth/3.,0.,1.);
-vec3 cS=vec3(.40,.87,.95),cM=vec3(.10,.52,.72),cD=vec3(.04,.22,.34);
-vec3 base=d<.5?mix(cS,cM,d*2.):mix(cM,cD,(d-.5)*2.);
-vec3 col=base+vec3(.8,.97,1.)*caustic*(.6-d*.4)+vec3(.9,.98,1.)*pow(clamp(sin(uv.x*.12-t*.28)*.5+.5,0.,1.),14.)*.18*(1.-d*.6);
-gl_FragColor=vec4(col,uOpacity*smoothstep(0.,.06,vDepth));}`;
+  float depth = sampleSoft(vUv);
+  float alphaMask = smoothstep(0.02, 0.22, depth);
+  if(alphaMask <= 0.001) discard;
+
+  float d = clamp(depth / uMaxDepth, 0.0, 1.0);
+  vec3 base = gradient4(d);
+
+  float dL = sampleSoft(vUv - vec2(uTexelSize.x, 0.0));
+  float dR = sampleSoft(vUv + vec2(uTexelSize.x, 0.0));
+  float dDn = sampleSoft(vUv - vec2(0.0, uTexelSize.y));
+  float dUp = sampleSoft(vUv + vec2(0.0, uTexelSize.y));
+  vec3 N = normalize(vec3(-(dR - dL)*2.2, 1.0, -(dUp - dDn)*2.2));
+
+  float t = uTime * 0.18;
+  vec2 wv1 = vUv*220.0 + vec2( t*1.6,  t*1.2);
+  vec2 wv2 = vUv*340.0 + vec2(-t*1.1,  t*0.9);
+  float eps = 0.01;
+  float nA  = fbm(wv1);
+  float nAx = fbm(wv1 + vec2(eps, 0.0)) - nA;
+  float nAz = fbm(wv1 + vec2(0.0, eps)) - nA;
+  float nB  = fbm(wv2);
+  float nBx = fbm(wv2 + vec2(eps, 0.0)) - nB;
+  float nBz = fbm(wv2 + vec2(0.0, eps)) - nB;
+  vec3 bumpN = normalize(vec3(-(nAx + nBx)*4.5, 1.0, -(nAz + nBz)*4.5));
+  N = normalize(mix(N, bumpN, 0.55));
+
+  vec3 V = vec3(0.0, 1.0, 0.0);
+  vec3 L = normalize(vec3(0.45, 0.90, 0.30));
+  vec3 H = normalize(L + V);
+  float NdotV = max(dot(N, V), 0.0);
+  float F = pow(1.0 - NdotV, 5.0);
+  float spec = pow(max(dot(N, H), 0.0), 96.0);
+  float diff = max(dot(N, L), 0.0) * 0.6 + 0.4;
+
+  vec3 col = base * diff;
+  col = mix(col, vec3(0.92, 0.96, 1.0), F * 0.30);
+  col += vec3(1.0, 0.98, 0.92) * spec * 0.55;
+
+  float caustic = pow(clamp(1.0 - abs(nA - nB), 0.0, 1.0), 8.0);
+  col += vec3(0.6, 0.9, 1.0) * caustic * 0.07 * (1.0 - d);
+
+  gl_FragColor = vec4(col, uOpacity * alphaMask);
+}`;
 
 function buildTransform(){
   const MC=window.maplibregl?.MercatorCoordinate;
@@ -346,49 +441,116 @@ function startAnimLoop(){
   rafId=requestAnimationFrame(loop);
 }
 
-function buildMesh(depths){
-  if(!scene||!depths||!modelTransform||!window.THREE)return;
-  waterMeshes.forEach(m=>{scene.remove(m);m.geometry?.dispose();m.material?.dispose();});
-  waterMeshes=[];
-
+function buildPolygonTexelMap(){
+  if(!coordinatesBuffer||!modelTransform||polyToTexel)return;
   const dv=new DataView(coordinatesBuffer);
-  const posArr=new Float32Array(polygonCount*6*3);
-  const dptArr=new Float32Array(polygonCount*6);
-  let vi=0,off=0;
-
+  const cx=new Float32Array(polygonCount);
+  const cz=new Float32Array(polygonCount);
+  let mnX=Infinity,mxX=-Infinity,mnZ=Infinity,mxZ=-Infinity;
+  let off=0;
   for(let p=0;p<polygonCount;p++){
     const pc=dv.getUint32(off,true);off+=4;
-    const depth=depths[p];
-    if(depth>0){
-      let mnX=Infinity,mxX=-Infinity,mnZ=Infinity,mxZ=-Infinity;
-      let ro=off;
-      for(let i=0;i<pc;i++){
-        const loc=toLocal(dv.getFloat64(ro,true),dv.getFloat64(ro+8,true));ro+=16;
-        if(loc.x<mnX)mnX=loc.x;if(loc.x>mxX)mxX=loc.x;
-        if(loc.z<mnZ)mnZ=loc.z;if(loc.z>mxZ)mxZ=loc.z;
-      }
-      posArr[vi*3]=mnX;posArr[vi*3+1]=0;posArr[vi*3+2]=mnZ;dptArr[vi]=depth;vi++;
-      posArr[vi*3]=mxX;posArr[vi*3+1]=0;posArr[vi*3+2]=mnZ;dptArr[vi]=depth;vi++;
-      posArr[vi*3]=mxX;posArr[vi*3+1]=0;posArr[vi*3+2]=mxZ;dptArr[vi]=depth;vi++;
-      posArr[vi*3]=mnX;posArr[vi*3+1]=0;posArr[vi*3+2]=mnZ;dptArr[vi]=depth;vi++;
-      posArr[vi*3]=mxX;posArr[vi*3+1]=0;posArr[vi*3+2]=mxZ;dptArr[vi]=depth;vi++;
-      posArr[vi*3]=mnX;posArr[vi*3+1]=0;posArr[vi*3+2]=mxZ;dptArr[vi]=depth;vi++;
+    let sx=0,sz=0;
+    for(let i=0;i<pc;i++){
+      const loc=toLocal(dv.getFloat64(off,true),dv.getFloat64(off+8,true));
+      off+=16;sx+=loc.x;sz+=loc.z;
     }
-    off+=pc*16;
+    const x=sx/pc,z=sz/pc;
+    cx[p]=x;cz[p]=z;
+    if(x<mnX)mnX=x;if(x>mxX)mxX=x;
+    if(z<mnZ)mnZ=z;if(z>mxZ)mxZ=z;
   }
-  if(vi===0)return;
+  const padX=(mxX-mnX)*0.02,padZ=(mxZ-mnZ)*0.02;
+  gridMinX=mnX-padX;gridMaxX=mxX+padX;
+  gridMinZ=mnZ-padZ;gridMaxZ=mxZ+padZ;
+  const gw=gridMaxX-gridMinX,gh=gridMaxZ-gridMinZ;
+  polyToTexel=new Int32Array(polygonCount);
+  for(let p=0;p<polygonCount;p++){
+    const u=Math.min(GRID_W-1,Math.max(0,Math.floor((cx[p]-gridMinX)/gw*GRID_W)));
+    const v=Math.min(GRID_H-1,Math.max(0,Math.floor((cz[p]-gridMinZ)/gh*GRID_H)));
+    polyToTexel[p]=v*GRID_W+u;
+  }
+  depthGrid=new Float32Array(GRID_W*GRID_H);
+  depthTexture=new THREE.DataTexture(depthGrid,GRID_W,GRID_H,THREE.LuminanceFormat,THREE.FloatType);
+  depthTexture.minFilter=THREE.LinearFilter;
+  depthTexture.magFilter=THREE.LinearFilter;
+  depthTexture.wrapS=THREE.ClampToEdgeWrapping;
+  depthTexture.wrapT=THREE.ClampToEdgeWrapping;
+  depthTexture.generateMipmaps=false;
+  depthTexture.needsUpdate=true;
+}
 
+function buildWaterSurfaceMesh(){
+  if(!scene||!window.THREE||waterMeshes.length)return;
+  const segX=PLANE_SEG,segZ=PLANE_SEG;
+  const nVerts=(segX+1)*(segZ+1);
+  const pos=new Float32Array(nVerts*3);
+  const uvs=new Float32Array(nVerts*2);
+  const sx=(gridMaxX-gridMinX)/segX;
+  const sz=(gridMaxZ-gridMinZ)/segZ;
+  let vi=0,ui=0;
+  for(let j=0;j<=segZ;j++){
+    for(let i=0;i<=segX;i++){
+      pos[vi++]=gridMinX+i*sx;
+      pos[vi++]=0;
+      pos[vi++]=gridMinZ+j*sz;
+      uvs[ui++]=i/segX;
+      uvs[ui++]=j/segZ;
+    }
+  }
+  const nQuads=segX*segZ;
+  const idx=nVerts>65535?new Uint32Array(nQuads*6):new Uint16Array(nQuads*6);
+  let ii=0;
+  for(let j=0;j<segZ;j++){
+    for(let i=0;i<segX;i++){
+      const a=j*(segX+1)+i,b=a+1,c=a+(segX+1),d=c+1;
+      idx[ii++]=a;idx[ii++]=c;idx[ii++]=b;
+      idx[ii++]=b;idx[ii++]=c;idx[ii++]=d;
+    }
+  }
   const geo=new THREE.BufferGeometry();
-  geo.setAttribute('position',new THREE.BufferAttribute(posArr.slice(0,vi*3),3));
-  geo.setAttribute('aDepth',  new THREE.BufferAttribute(dptArr.slice(0,vi),1));
+  geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  geo.setAttribute('uv',new THREE.BufferAttribute(uvs,2));
+  geo.setIndex(new THREE.BufferAttribute(idx,1));
 
-  const mat=new THREE.ShaderMaterial({
-    uniforms:{uTime:{value:animClock},uOpacity:{value:floodOpacity}},
+  waterMaterial=new THREE.ShaderMaterial({
+    uniforms:{
+      uTime:{value:animClock},
+      uOpacity:{value:floodOpacity},
+      uMaxDepth:{value:DEPTH_MAX},
+      uDepthTex:{value:depthTexture},
+      uTexelSize:{value:new THREE.Vector2(1/GRID_W,1/GRID_H)},
+      uWaveAmp:{value:0.18}
+    },
     vertexShader:VERT_SRC,fragmentShader:FRAG_SRC,
     transparent:true,side:THREE.DoubleSide,depthWrite:false
   });
-  const mesh=new THREE.Mesh(geo,mat);
+  const mesh=new THREE.Mesh(geo,waterMaterial);
+  mesh.frustumCulled=false;
   scene.add(mesh);waterMeshes.push(mesh);
+}
+
+function ensureWaterSurface(){
+  if(waterSurfaceBuilt)return true;
+  if(!scene||!modelTransform||!coordinatesBuffer||!polygonCount||!window.THREE)return false;
+  buildPolygonTexelMap();
+  buildWaterSurfaceMesh();
+  waterSurfaceBuilt=true;
+  return true;
+}
+
+function updateDepthTexture(depths){
+  if(!ensureWaterSurface()||!depthGrid||!depths)return;
+  depthGrid.fill(0);
+  for(let p=0;p<polygonCount;p++){
+    const d=depths[p];
+    if(d>0){
+      const idx=polyToTexel[p];
+      if(d>depthGrid[idx])depthGrid[idx]=d;
+    }
+  }
+  if(waterMaterial)waterMaterial.uniforms.uOpacity.value=floodOpacity;
+  depthTexture.needsUpdate=true;
 }
 
 // ── Flood data loading ────────────────────────────────────────────────────────
@@ -446,7 +608,7 @@ async function updateStep(step){
   step=Math.max(0,Math.min(TOTAL_STEPS,step));
   const depths=await getDepth(step);if(!depths)return;
   lastDepths=depths;
-  currentStep=step;buildMesh(depths);
+  currentStep=step;updateDepthTexture(depths);
   fpPopup.style.display='none';fpLat=fpLng=null;
   const nc=Math.floor(step/CHUNK_SIZE)+1;
   if(nc<TOTAL_CHUNKS&&!chunkCache.has(nc)&&!chunkQueue.has(nc))loadChunk(nc).catch(()=>{});
