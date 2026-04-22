@@ -38,16 +38,6 @@ function loadThreeJS(cb) {
   document.head.appendChild(s);
 }
 
-function loadHtml2Canvas(cb) {
-  if (window.html2canvas) { cb(); return; }
-  var s = document.createElement('script');
-  s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-  s.async = true;
-  s.onload = cb;
-  s.onerror = function() { console.warn('html2canvas failed'); cb(); };
-  document.head.appendChild(s);
-}
-
 const CHUNK_SIZE=10,TOTAL_CHUNKS=34,MAX_CACHED=3,TOTAL_STEPS=336;
 const REF_LAT=28.4595,REF_LNG=77.0266;
 const NOM_UA='FloodTwin/1.0';
@@ -62,6 +52,7 @@ let currentStep=0,isPlaying=false,playInterval=null,playSpeed=500;
 let floodOpacity=0.70,depthScale=1.0;
 let waterMeshes=[],polygonCount=0,coordinatesBuffer=null;
 let is3DMode=false;
+let isFullscreen=false;
 const chunkCache=new Map(),chunkQueue=new Set();
 let polygonRings=null;
 let lastDepths=null;
@@ -112,7 +103,7 @@ document.getElementById('fpClose').addEventListener('click',()=>{fpPopup.style.d
 
 function repositionFloodPopup(){
   if(fpPopup.style.display==='none'||fpLat===null)return;
-  try{const pt=map.project({lat:fpLat,lng:fpLng});fpPopup.style.left=pt.x+'px';fpPopup.style.top=(pt.y-14)+'px';}catch(e){}
+  try{const pt=map.project({lat:fpLat,lng:fpLng});fpPopup.style.transform=`translate3d(${pt.x}px,${pt.y-14}px,0) translate(-50%,-100%)`;}catch(e){}
 }
 function showFloodPopup(lng,lat,depth){
   const sev=SEV.find(s=>depth<s.max);
@@ -124,7 +115,8 @@ function showFloodPopup(lng,lat,depth){
   document.getElementById('fpLabel').textContent=sev.label;
   document.getElementById('fpTime').textContent=document.getElementById('timeDisplay').textContent;
   document.getElementById('fpCoords').textContent=`${lat.toFixed(4)}°N, ${lng.toFixed(4)}°E`;
-  if(!document.body.contains(fpPopup))document.body.appendChild(fpPopup);
+  const mapEl=document.getElementById('map');
+  if(fpPopup.parentNode!==mapEl)mapEl.appendChild(fpPopup);
   fpPopup.style.display='block';repositionFloodPopup();
 }
 async function tryFloodHit(lat,lng){
@@ -174,17 +166,17 @@ function addMarkers(key,features){
     const addrLine=[p['addr:housename'],p['addr:housenumber'],p['addr:street']||p['addr:place'],p['addr:city']||p['addr:district'],p['addr:state']].filter(Boolean).join(', ');
     const el=document.createElement('div');el.className='osm-marker';el.style.background=cat.accent;el.textContent=cat.icon;
     mapEl.appendChild(el);
-    const posUpdate=()=>{try{const pt=map.project({lat,lng});el.style.left=pt.x+'px';el.style.top=pt.y+'px';}catch(e){}};
+    const posUpdate=()=>{try{const pt=map.project({lat,lng});el.style.transform=`translate3d(${pt.x}px,${pt.y}px,0) translate(-50%,-100%)`;}catch(e){}};
     posUpdate();
     el.addEventListener('click',e=>{
       e.stopPropagation();document.querySelectorAll('.osm-popup').forEach(p=>p.remove());
       const pop=document.createElement('div');pop.className='osm-popup';
       pop.innerHTML=`<button class="popup-close">✕</button><div class="popup-name">${esc(name)}</div><div class="popup-type">${esc(cat.label)}</div>${addrLine?`<div class="popup-addr">${esc(addrLine)}</div>`:''}`;
-      const pt=map.project({lat,lng});pop.style.left=pt.x+'px';pop.style.top=(pt.y-44)+'px';
+      const setPopPos=()=>{try{const pt=map.project({lat,lng});pop.style.transform=`translate3d(${pt.x}px,${pt.y-44}px,0)`;}catch(e){}};
+      setPopPos();
       mapEl.appendChild(pop);
-      const mv=()=>{try{const pt2=map.project({lat,lng});pop.style.left=pt2.x+'px';pop.style.top=(pt2.y-44)+'px';}catch(e){}};
-      map.on('move',mv);
-      pop.querySelector('.popup-close').addEventListener('click',()=>{pop.remove();try{map.off('move',mv);}catch(e){}});
+      map.on('move',setPopPos);
+      pop.querySelector('.popup-close').addEventListener('click',()=>{pop.remove();try{map.off('move',setPopPos);}catch(e){}});
     });
     catMarkers[key].push({el,lat,lng,posUpdate});
   });
@@ -248,6 +240,57 @@ function initSearch(){
     const label=await nominatimReverse(lat,lng);input.value=label;flyPin(lat,lng,label);
   });
 }
+
+function formatScaleDistance(meters){
+  if(meters >= 1000){
+    const km = meters / 1000;
+    return (km >= 10 ? Math.round(km) : km.toFixed(km >= 2 ? 1 : 2).replace(/\.?0+$/,'')) + ' km';
+  }
+  return Math.round(meters) + ' m';
+}
+
+function getNiceScaleDistance(maxMeters){
+  const steps=[1,2,5];
+  const pow=Math.pow(10,Math.floor(Math.log10(Math.max(maxMeters,1))));
+  let best=pow;
+  for(let exp=pow;exp<=pow*10;exp*=10){
+    for(const step of steps){
+      const candidate=step*exp;
+      if(candidate<=maxMeters)best=candidate;
+    }
+  }
+  return best;
+}
+
+function updateScaleBars(){
+  if(!map)return;
+  try{
+    const center=map.getCenter();
+    const zoom=map.getZoom();
+    const metersPerPixel=156543.03392*Math.cos((center.lat||0)*Math.PI/180)/Math.pow(2,zoom);
+    const maxWidthPx=120;
+    const niceMeters=getNiceScaleDistance(metersPerPixel*maxWidthPx);
+    const widthPx=Math.max(36,Math.min(maxWidthPx,niceMeters/metersPerPixel));
+    ['mapScaleRight'].forEach(id=>{
+      const root=document.getElementById(id);
+      if(!root)return;
+      const bar=root.querySelector('.map-scale-bar');
+      const label=root.querySelector('.map-scale-label');
+      if(bar)bar.style.width=widthPx+'px';
+      if(label)label.textContent=formatScaleDistance(niceMeters);
+    });
+  }catch(e){}
+}
+
+function syncFullscreenState(){
+  isFullscreen=!!document.fullscreenElement;
+  document.body.classList.toggle('is-fullscreen',isFullscreen);
+  if(isFullscreen){
+    const sb=document.getElementById('sidebar');
+    if(sb&&!sb.classList.contains('collapsed'))toggleSidebar();
+  }
+  updateScaleBars();
+}
 async function nominatimForward(query,list,input){
   try{
     const r=await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=6&addressdetails=1`,{headers:{'User-Agent':NOM_UA}});
@@ -273,7 +316,7 @@ function flyPin(lat,lng,name){
   if(currentPin){currentPin();currentPin=null;}
   const el=document.createElement('div');el.className='search-pin';el.textContent='📍';el.title=name;
   document.getElementById('map').appendChild(el);
-  const upd=()=>{try{const p=map.project({lat,lng});el.style.left=p.x+'px';el.style.top=p.y+'px';}catch(e){}};
+  const upd=()=>{try{const p=map.project({lat,lng});el.style.transform=`translate3d(${p.x}px,${p.y}px,0) translate(-50%,-100%)`;}catch(e){}};
   upd();map.on('move',upd);
   const rm=()=>{el.remove();try{map.off('move',upd);}catch(e){}};
   currentPin=rm;setTimeout(()=>{if(currentPin===rm){rm();currentPin=null;}},10000);
@@ -430,16 +473,6 @@ const customLayer={
 };
 
 let animClock=0,rafId=null;
-function startAnimLoop(){
-  if(rafId)return;
-  const loop=()=>{
-    animClock+=0.016;
-    waterMeshes.forEach(mesh=>{if(mesh.material?.uniforms?.uTime)mesh.material.uniforms.uTime.value=animClock;});
-    if(glMap)glMap.triggerRepaint();
-    rafId=requestAnimationFrame(loop);
-  };
-  rafId=requestAnimationFrame(loop);
-}
 
 function buildPolygonTexelMap(){
   if(!coordinatesBuffer||!modelTransform||polyToTexel)return;
@@ -619,220 +652,24 @@ async function updateStep(step){
   sl.style.background=`linear-gradient(to right,#5298A9 ${(step/TOTAL_STEPS*100)}%,#e2e8f0 ${(step/TOTAL_STEPS*100)}%)`;
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// ── SCREENSHOT / EXPORT FEATURE ───────────────────────────────────────────────
-// ══════════════════════════════════════════════════════════════════════════════
-
-let exportFormat = 'png';
-let lastDataUrl = null;
-
-document.querySelectorAll('.fmt-pill').forEach(p => {
-  p.addEventListener('click', () => {
-    document.querySelectorAll('.fmt-pill').forEach(x => x.classList.remove('active'));
-    p.classList.add('active');
-    exportFormat = p.dataset.fmt;
-    document.getElementById('exportFormatBadge').textContent = exportFormat.toUpperCase();
-  });
-});
-
-document.getElementById('previewWrap').addEventListener('click', () => {
-  if(lastDataUrl) triggerDownload(lastDataUrl, exportFormat);
-});
-
-function setCaptureStatus(msg, color='#5298A9') {
-  const el = document.getElementById('captureStatus');
-  el.textContent = msg;
-  el.style.color = color;
-}
-
-function triggerDownload(dataUrl, fmt) {
-  const a = document.createElement('a');
-  const ts = document.getElementById('timeDisplay').textContent.replace(/[\s:]/g,'-');
-  a.download = `floodtwin_${ts}.${fmt}`;
-  a.href = dataUrl;
-  a.click();
-}
-
-function flashScreen() {
-  const fl = document.getElementById('captureFlash');
-  fl.classList.remove('flash');
-  void fl.offsetWidth;
-  fl.classList.add('flash');
-}
-
-function computeFloodStats(depths) {
-  if (!depths) return { low:0, mod:0, high:0, severe:0, total:0, wetPct:'0' };
-  let low=0, mod=0, high=0, severe=0, wet=0;
-  for (let i=0; i<depths.length; i++) {
-    const d = depths[i];
-    if (d <= 0) continue;
-    wet++;
-    if (d < 0.5) low++;
-    else if (d < 1.0) mod++;
-    else if (d < 2.0) high++;
-    else severe++;
-  }
-  const total = depths.length;
-  return { low, mod, high, severe, total, wet, wetPct: total ? (wet/total*100).toFixed(1) : '0' };
-}
-
-function populateStatsCard(stats) {
-  document.getElementById('scTime').textContent = '⏱ ' + document.getElementById('timeDisplay').textContent;
-  const fmt = n => n.toLocaleString();
-  document.getElementById('scLow').textContent    = fmt(stats.low)    + ' zones';
-  document.getElementById('scMod').textContent    = fmt(stats.mod)    + ' zones';
-  document.getElementById('scHigh').textContent   = fmt(stats.high)   + ' zones';
-  document.getElementById('scSevere').textContent = fmt(stats.severe) + ' zones';
-}
-
-async function captureMap() {
-  const btn = document.getElementById('captureBtn');
-  const icon = document.getElementById('captureBtnIcon');
-  const txt  = document.getElementById('captureBtnText');
-  btn.disabled = true;
-  icon.textContent = '⏳';
-  txt.textContent = 'Capturing…';
-  setCaptureStatus('Preparing export…');
-
-  const optStats     = document.getElementById('optStats').checked;
-  const optTimestamp = document.getElementById('optTimestamp').checked;
-  const optLegend    = document.getElementById('optLegend').checked;
-  const optWatermark = document.getElementById('optWatermark').checked;
-  const fmt          = exportFormat;
-  const quality      = fmt === 'jpg' ? 0.92 : 1.0;
-  const mimeType     = fmt === 'jpg' ? 'image/jpeg' : 'image/png';
-
-  try {
-    setCaptureStatus('Reading map canvas…');
-    const mapCanvas = document.querySelector('#map canvas');
-    if (!mapCanvas) throw new Error('Map canvas not found');
-
-    if (glMap) try { glMap.triggerRepaint(); } catch(e) {}
-    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-
-    const W = mapCanvas.width  || window.innerWidth;
-    const H = mapCanvas.height || window.innerHeight;
-
-    const canvas = document.createElement('canvas');
-    canvas.width  = W;
-    canvas.height = H;
-    const ctx = canvas.getContext('2d');
-
-    ctx.drawImage(mapCanvas, 0, 0, W, H);
-
-    if (optLegend && window.html2canvas) {
-      setCaptureStatus('Rendering legend…');
-      const legendEl = document.getElementById('legend');
-      try {
-        const legendCanvas = await html2canvas(legendEl, {
-          backgroundColor: null, scale: 2, logging: false,
-          useCORS: true, allowTaint: true
-        });
-        const lw = legendCanvas.width  / 2;
-        const lh = legendCanvas.height / 2;
-        const margin = 28;
-        ctx.drawImage(legendCanvas, margin, H - lh - margin, lw, lh);
-      } catch(e) { console.warn('legend capture failed', e); }
-    }
-
-    if (optStats && window.html2canvas) {
-      setCaptureStatus('Rendering stats card…');
-      const stats = computeFloodStats(lastDepths);
-      populateStatsCard(stats);
-      const statsEl = document.getElementById('statsCard');
-      statsEl.style.position = 'fixed';
-      statsEl.style.left = '-3000px';
-      statsEl.style.top  = '50px';
-      statsEl.style.display = 'block';
-      try {
-        const sc = await html2canvas(statsEl, {
-          backgroundColor: null, scale: 2, logging: false,
-          useCORS: true, allowTaint: true
-        });
-        const sw = sc.width  / 2;
-        const sh = sc.height / 2;
-        const margin = 28;
-        ctx.drawImage(sc, W - sw - margin, H - sh - margin - 80, sw, sh);
-      } catch(e) { console.warn('stats card capture failed', e); }
-      statsEl.style.position = 'fixed';
-      statsEl.style.left = '-9999px';
-      statsEl.style.top  = '-9999px';
-    }
-
-    if (optTimestamp) {
-      const ts = document.getElementById('timeDisplay').textContent;
-      const pad = 16;
-      ctx.save();
-      ctx.font = 'bold 15px "Segoe UI", system-ui, sans-serif';
-      const tw = ctx.measureText(ts).width;
-      const rx = W - tw - pad*2 - 20;
-      const ry = 20;
-      const rw = tw + pad*2;
-      const rh = 38;
-      ctx.fillStyle = 'rgba(38,67,81,0.88)';
-      ctx.beginPath();
-      ctx.roundRect(rx, ry, rw, rh, 10);
-      ctx.fill();
-      ctx.fillStyle = '#B1DEE2';
-      ctx.font = 'bold 11px "Segoe UI", system-ui, sans-serif';
-      ctx.fillText('FLOOD TWIN · AIRESQ', rx + pad, ry + 15);
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 14px "Segoe UI", system-ui, sans-serif';
-      ctx.fillText(ts, rx + pad, ry + 29);
-      ctx.restore();
-    }
-
-    if (optWatermark) {
-      ctx.save();
-      ctx.globalAlpha = 0.45;
-      ctx.font = 'bold 13px "Segoe UI", system-ui, sans-serif';
-      ctx.fillStyle = '#fff';
-      ctx.textAlign = 'right';
-      ctx.textBaseline = 'bottom';
-      ctx.shadowColor = 'rgba(0,0,0,0.6)';
-      ctx.shadowBlur = 4;
-      ctx.fillText('airesq.com · FloodTwin', W - 12, H - 12);
-      ctx.restore();
-    }
-
-    setCaptureStatus('Encoding image…');
-    const dataUrl = canvas.toDataURL(mimeType, quality);
-    lastDataUrl = dataUrl;
-
-    flashScreen();
-    triggerDownload(dataUrl, fmt);
-
-    const prev = document.getElementById('previewImg');
-    prev.src = dataUrl;
-    document.getElementById('previewWrap').style.display = 'block';
-
-    setCaptureStatus(`✅ Saved as .${fmt.toUpperCase()}`, '#10b981');
-
-  } catch(err) {
-    console.error('Capture error:', err);
-    setCaptureStatus('❌ Capture failed: ' + err.message, '#ef4444');
-  } finally {
-    btn.disabled = false;
-    icon.textContent = '📸';
-    txt.textContent = 'Capture Map';
-  }
-}
-
-document.getElementById('captureBtn').addEventListener('click', captureMap);
-
 // ── UI controls ───────────────────────────────────────────────────────────────
 function removeAttribution(){
-  ['.mappls-copyright','.maplibregl-ctrl-attrib','.mappls-ctrl-attrib','.maplibregl-ctrl-bottom-left','.maplibregl-ctrl-bottom-right','.mappls-ctrl-bottom-left','.mappls-ctrl-bottom-right'].forEach(sel=>document.querySelectorAll(sel).forEach(el=>{el.style.cssText='display:none!important';}));
+  ['.mappls-copyright','.mappls-logo','.mappls-watermark','.maplibregl-ctrl-attrib','.mappls-ctrl-attrib','[class*="mappls-logo"]','[class*="mappls-watermark"]','[class*="maplibregl-ctrl-logo"]','.maplibregl-ctrl-bottom-left','.maplibregl-ctrl-bottom-right','.mappls-ctrl-bottom-left','.mappls-ctrl-bottom-right','a[href*="mappls"]','a[href*="mapmyindia"]','img[src*="mappls"]','img[src*="mapmyindia"]'].forEach(sel=>document.querySelectorAll(sel).forEach(el=>{el.style.cssText='display:none!important';}));
 }
-setInterval(removeAttribution,2000);
+setInterval(removeAttribution,5000);
 
 function toggleSidebar(){
   const sb=document.getElementById('sidebar'),ham=document.getElementById('hamburgerBtn'),chv=document.getElementById('collapseBtn');
-  const c=sb.classList.toggle('collapsed');ham.classList.toggle('open',!c);chv.innerHTML=c?'›':'‹';
+  const c=sb.classList.toggle('collapsed');
+  document.body.classList.toggle('sidebar-collapsed',c);
+  ham.classList.toggle('open',!c);
+  chv.innerHTML=c?'›':'‹';
 }
 document.getElementById('hamburgerBtn').addEventListener('click',toggleSidebar);
 document.getElementById('collapseBtn').addEventListener('click',toggleSidebar);
+document.getElementById('headerSidebarToggle').addEventListener('click',toggleSidebar);
 document.getElementById('timeSlider').addEventListener('input',e=>updateStep(+e.target.value));
+document.addEventListener('fullscreenchange',syncFullscreenState);
 
 const playBtn=document.getElementById('playBtn');
 playBtn.addEventListener('click',()=>{
@@ -867,60 +704,71 @@ document.getElementById('toggle3DBtn').addEventListener('click',()=>{
 setStatus('Loading map SDK…');
 
 loadThreeJS(()=>{
-  loadHtml2Canvas(()=>{
-    setStatus('Loading map…');
-    loadMapplsSDK(()=>{
-      setStatus('Initialising map…');
+  setStatus('Loading map…');
+  loadMapplsSDK(()=>{
+    setStatus('Initialising map…');
 
-      try{
-        map = new mappls.Map('map', {
-          center: {lat:28.4595, lng:77.0266},
-          zoom: 13, pitch: 0, bearing: 0,
-          zoomControl: false, attributionControl: false
-        });
-      }catch(e){
-        setStatus('❌ Map init failed: ' + e.message);
-        console.error(e);
-        return;
-      }
-
-      document.getElementById('toggle3DBtn').classList.add('active');
-
-      let threeReady = false;
-      function boot3(){
-        if(threeReady||!window.THREE)return;threeReady=true;
-        glMap=map;modelTransform=buildTransform();
-        try{map.addLayer(customLayer);}catch(e){console.warn('Layer add:',e);}
-        if(!rafId){
-          const loop=()=>{
-            animClock+=0.016;
-            waterMeshes.forEach(m=>{if(m.material?.uniforms?.uTime)m.material.uniforms.uTime.value=animClock;});
-            if(glMap)glMap.triggerRepaint();
-            rafId=requestAnimationFrame(loop);
-          };
-          rafId=requestAnimationFrame(loop);
-        }
-      }
-      map.on('load', boot3);
-      map.on('style.load', boot3);
-      setTimeout(()=>{if(!threeReady)boot3();}, 6000);
-
-      ['move','zoom','pitch','rotate'].forEach(ev=>map.on(ev,syncAllMarkers));
-
-      map.on('load', ()=>{
-        initSearch();
-        loadAllAssets();
-        removeAttribution();
-        initializeVisualization();
+    try{
+      map = new mappls.Map('map', {
+        center: {lat:28.4595, lng:77.0266},
+        zoom: 13, pitch: 0, bearing: 0,
+        zoomControl: false, attributionControl: false
       });
+    }catch(e){
+      setStatus('❌ Map init failed: ' + e.message);
+      console.error(e);
+      return;
+    }
 
-      setTimeout(()=>{
-        if(document.getElementById('loadingProgress').textContent==='Initialising map…'){
-          initSearch();loadAllAssets();removeAttribution();
-          initializeVisualization();
-        }
-      }, 8000);
+    document.getElementById('toggle3DBtn').classList.add('active');
+
+    let threeReady = false;
+    function boot3(){
+      if(threeReady||!window.THREE)return;threeReady=true;
+      glMap=map;modelTransform=buildTransform();
+      try{map.addLayer(customLayer);}catch(e){console.warn('Layer add:',e);}
+      if(!rafId){
+        const loop=()=>{
+          animClock+=0.016;
+          waterMeshes.forEach(m=>{if(m.material?.uniforms?.uTime)m.material.uniforms.uTime.value=animClock;});
+          if(glMap)glMap.triggerRepaint();
+          rafId=requestAnimationFrame(loop);
+        };
+        rafId=requestAnimationFrame(loop);
+      }
+    }
+    map.on('load', boot3);
+    map.on('style.load', boot3);
+    setTimeout(()=>{if(!threeReady)boot3();}, 6000);
+
+    let syncRaf=null;
+    const scheduleMapSync=()=>{
+      if(syncRaf)return;
+      syncRaf=requestAnimationFrame(()=>{
+        syncRaf=null;
+        syncAllMarkers();
+        updateScaleBars();
+      });
+    };
+    ['move','zoom','pitch','rotate','resize'].forEach(ev=>map.on(ev,scheduleMapSync));
+
+    map.on('load', ()=>{
+      initSearch();
+      loadAllAssets();
+      removeAttribution();
+      initializeVisualization();
+      updateScaleBars();
+      syncFullscreenState();
     });
+
+    setTimeout(()=>{
+      if(document.getElementById('loadingProgress').textContent==='Initialising map…'){
+        initSearch();loadAllAssets();removeAttribution();
+        initializeVisualization();
+        updateScaleBars();
+        syncFullscreenState();
+      }
+    }, 8000);
   });
 });
 
