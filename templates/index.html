@@ -15,7 +15,10 @@
 
 <div id="loadingOverlay">
   <div class="loader">
-    <div class="spinner"></div>
+    <div class="spinner">
+      <div class="spinner-ripple"></div>
+      <div class="spinner-ripple"></div>
+    </div>
     <h2>Initializing Flood Visualization…</h2>
     <p id="loadingProgress">Loading map SDK…</p>
   </div>
@@ -60,7 +63,13 @@
         <div class="panel-header">
           <div class="panel-header-left"><span class="panel-icon">🕐</span><span class="panel-title">Time Control</span></div>
         </div>
-        <div id="timeBox"><div id="timeBoxLabel">Current Time</div><div id="timeDisplay">09-July-2025 00:00:00</div></div>
+        <div id="timeBox">
+          <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:4px;">
+            <div id="timeBoxLabel">Current Time</div>
+            <span id="liveIndicator"><span id="liveDot"></span><span id="liveLabel">Live</span></span>
+          </div>
+          <div id="timeDisplay">09-July-2025 00:00:00</div>
+        </div>
         <input type="range" id="timeSlider" min="0" max="336" value="0" step="1">
         <div id="transportBtns">
           <button class="tbtn" id="resetBtn">↺</button>
@@ -107,7 +116,7 @@
 
     <main class="viewport-shell">
       <div id="map"></div>
-      <div id="chunkLoadingIndicator">Loading timestep data…</div>
+      <div id="chunkLoadingIndicator"><div class="chunk-dots"><span></span><span></span><span></span></div>Loading timestep data…</div>
 
       <!-- FLOOD DEPTH POPUP -->
       <div id="floodPopup">

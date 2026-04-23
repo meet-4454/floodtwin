@@ -115,9 +115,15 @@ function showFloodPopup(lng,lat,depth){
   document.getElementById('fpLabel').textContent=sev.label;
   document.getElementById('fpTime').textContent=document.getElementById('timeDisplay').textContent;
   document.getElementById('fpCoords').textContent=`${lat.toFixed(4)}°N, ${lng.toFixed(4)}°E`;
+  fpPopup.classList.remove('sev-low','sev-moderate','sev-high','sev-severe');
+  fpPopup.classList.add('sev-'+sev.label.toLowerCase());
   const mapEl=document.getElementById('map');
   if(fpPopup.parentNode!==mapEl)mapEl.appendChild(fpPopup);
-  fpPopup.style.display='block';repositionFloodPopup();
+  fpPopup.classList.remove('fp-visible');
+  fpPopup.style.display='block';
+  void fpPopup.offsetWidth;
+  fpPopup.classList.add('fp-visible');
+  repositionFloodPopup();
 }
 async function tryFloodHit(lat,lng){
   if(!polygonRings)return false;
@@ -630,7 +636,7 @@ async function loadChunk(idx){
 async function getDepth(step){
   const ci=Math.floor(step/CHUNK_SIZE);
   if(!chunkCache.has(ci)){
-    document.getElementById('chunkLoadingIndicator').style.display='block';
+    document.getElementById('chunkLoadingIndicator').style.display='flex';
     await loadChunk(ci);
     document.getElementById('chunkLoadingIndicator').style.display='none';
   }
@@ -672,8 +678,10 @@ document.getElementById('timeSlider').addEventListener('input',e=>updateStep(+e.
 document.addEventListener('fullscreenchange',syncFullscreenState);
 
 const playBtn=document.getElementById('playBtn');
+const liveIndicator=document.getElementById('liveIndicator');
 playBtn.addEventListener('click',()=>{
   isPlaying=!isPlaying;playBtn.classList.toggle('active',isPlaying);playBtn.innerHTML=isPlaying?'⏸':'▶';
+  liveIndicator.classList.toggle('active',isPlaying);
   if(isPlaying)playInterval=setInterval(()=>updateStep(currentStep>=TOTAL_STEPS?0:currentStep+1),playSpeed);
   else clearInterval(playInterval);
 });
