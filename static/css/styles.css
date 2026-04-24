@@ -1036,3 +1036,112 @@ body.is-fullscreen #hamburgerBtn.open{
 #floodPopup.sev-moderate .fp-depth-val{color:#0369a1}
 #floodPopup.sev-high   .fp-depth-val{color:#155e75}
 #floodPopup.sev-severe .fp-depth-val{color:#0D2E61}
+
+/* ── Drive mode ──────────────────────────────────────────── */
+body.drive-mode #sidebar{pointer-events:none;opacity:.3}
+body.drive-mode #floodPopup{display:none!important}
+body.drive-mode #map{cursor:none}
+
+@keyframes hud-in{
+  from{opacity:0;transform:translateY(12px)}
+  to{opacity:1;transform:translateY(0)}
+}
+#driveHud{
+  display:none;
+  position:absolute;
+  bottom:28px;
+  left:50%;
+  transform:translateX(-50%);
+  z-index:80;
+  flex-direction:column;
+  align-items:center;
+  gap:10px;
+  animation:hud-in .3s cubic-bezier(.2,.8,.2,1);
+}
+body.drive-mode #driveHud{display:flex}
+
+#driveHudInner{
+  display:flex;
+  align-items:center;
+  gap:0;
+  padding:14px 24px;
+  border-radius:18px;
+  background:rgba(15,25,40,.78);
+  border:1px solid rgba(82,152,169,.28);
+  backdrop-filter:blur(16px);
+  -webkit-backdrop-filter:blur(16px);
+  box-shadow:0 8px 32px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.06);
+  color:#fff;
+}
+.hud-block{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  min-width:64px;
+}
+.hud-val{
+  font-family:'JetBrains Mono',ui-monospace,monospace;
+  font-size:28px;
+  font-weight:700;
+  line-height:1;
+  color:#fff;
+  letter-spacing:-1px;
+}
+.hud-val-sm{font-size:13px;letter-spacing:0;line-height:1.4}
+.hud-lbl{
+  font-size:9px;
+  font-weight:700;
+  letter-spacing:1.4px;
+  text-transform:uppercase;
+  color:rgba(178,214,228,.6);
+  margin-top:3px;
+}
+.hud-sep{
+  width:1px;
+  height:40px;
+  background:rgba(82,152,169,.25);
+  margin:0 16px;
+}
+.hud-coords{min-width:100px}
+
+#hudControls{
+  display:flex;
+  align-items:center;
+  gap:4px;
+  padding:7px 16px;
+  border-radius:999px;
+  background:rgba(15,25,40,.65);
+  border:1px solid rgba(82,152,169,.18);
+  backdrop-filter:blur(12px);
+  font-size:11px;
+  font-weight:600;
+  color:rgba(200,220,230,.7);
+  letter-spacing:.2px;
+  white-space:nowrap;
+}
+.hud-key{
+  display:inline-block;
+  padding:2px 7px;
+  border-radius:5px;
+  background:rgba(82,152,169,.22);
+  border:1px solid rgba(82,152,169,.35);
+  color:#b2d6e4;
+  font-size:10px;
+  font-weight:700;
+  font-family:'JetBrains Mono',ui-monospace,monospace;
+}
+
+/* drive mode btn active state */
+#driveModeBtn.active{
+  background:linear-gradient(135deg,#e05a6b,#c0394a);
+  color:#fff;
+  border-color:#c0394a;
+  box-shadow:0 4px 14px rgba(192,57,74,.45);
+}
+
+/* speedometer needle flash on high speed */
+@keyframes speed-flash{
+  0%,100%{color:#fff}
+  50%{color:#f87171}
+}
+#hudSpeed.fast{animation:speed-flash .4s ease-in-out infinite}

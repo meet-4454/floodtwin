@@ -780,4 +780,276 @@ loadThreeJS(()=>{
   });
 });
 
+// ── DRIVE SIMULATOR ───────────────────────────────────────────────────────────
+const DRIVE={
+  // geo state
+  lat: REF_LAT,
+  lng: REF_LNG,
+  heading: 0,        // degrees, 0=north, clockwise
+
+  // physics
+  speed: 0,          // m/s
+  steer: 0,          // -1..1
+  MAX_SPEED: 22,     // ~80 km/h
+  ACCEL: 7,
+  BRAKE: 14,
+  FRICTION: 3.5,
+  STEER_SPEED: 2.2,
+  STEER_RETURN: 4.0,
+  TURN_RATE: 55,     // deg/s at full steer & speed
+
+  // three.js objects
+  carGroup: null,
+  wheels: [],
+  wheelRotation: 0,
+
+  // mode
+  active: false,
+  keys: {},
+
+  // map follow
+  followRaf: null,
+};
+
+// Mercator: metres per degree of latitude (approx constant)
+const M_PER_DEG_LAT = 111320;
+function mPerDegLng(lat){ return 111320 * Math.cos(lat * Math.PI / 180); }
+
+function buildCarMesh(){
+  if(!window.THREE || !scene) return;
+  if(DRIVE.carGroup){ scene.remove(DRIVE.carGroup); DRIVE.carGroup=null; DRIVE.wheels=[]; }
+
+  const g = new THREE.Group();
+
+  // Body
+  const bodyGeo = new THREE.BoxGeometry(1.8, 0.55, 4.2);
+  const bodyMat = new THREE.MeshPhongMaterial({color:0xD42B2B, shininess:120});
+  const body = new THREE.Mesh(bodyGeo, bodyMat);
+  body.position.y = 0.55;
+  g.add(body);
+
+  // Cabin
+  const cabGeo = new THREE.BoxGeometry(1.5, 0.45, 2.2);
+  const cabMat = new THREE.MeshPhongMaterial({color:0xB02020, shininess:60});
+  const cab = new THREE.Mesh(cabGeo, cabMat);
+  cab.position.set(0, 1.02, -0.2);
+  g.add(cab);
+
+  // Windshield tint
+  const wGeo = new THREE.BoxGeometry(1.42, 0.38, 0.06);
+  const wMat = new THREE.MeshPhongMaterial({color:0x88CCEE, transparent:true, opacity:0.55, shininess:200});
+  const wFront = new THREE.Mesh(wGeo, wMat);
+  wFront.position.set(0, 1.02, 0.88);
+  g.add(wFront);
+
+  // Headlights
+  [[0.7,0.55,2.1],[-0.7,0.55,2.1]].forEach(([x,y,z])=>{
+    const lGeo = new THREE.BoxGeometry(0.28,0.14,0.06);
+    const lMat = new THREE.MeshPhongMaterial({color:0xFFFFCC, emissive:0xFFFF88, emissiveIntensity:0.8});
+    const l = new THREE.Mesh(lGeo, lMat);
+    l.position.set(x,y,z);
+    g.add(l);
+  });
+
+  // Taillights
+  [[0.7,0.55,-2.1],[-0.7,0.55,-2.1]].forEach(([x,y,z])=>{
+    const lGeo = new THREE.BoxGeometry(0.28,0.12,0.06);
+    const lMat = new THREE.MeshPhongMaterial({color:0xFF1111, emissive:0xCC0000, emissiveIntensity:0.6});
+    const l = new THREE.Mesh(lGeo, lMat);
+    l.position.set(x,y,z);
+    g.add(l);
+  });
+
+  // Wheels
+  const whlGeo = new THREE.CylinderGeometry(0.34, 0.34, 0.22, 16);
+  const whlMat = new THREE.MeshPhongMaterial({color:0x222222, shininess:30});
+  const rimGeo = new THREE.CylinderGeometry(0.20, 0.20, 0.23, 8);
+  const rimMat = new THREE.MeshPhongMaterial({color:0xAAAAAA, shininess:120});
+  const wPos = [[0.95,0.34,1.35],[-0.95,0.34,1.35],[0.95,0.34,-1.35],[-0.95,0.34,-1.35]];
+  wPos.forEach(([x,y,z])=>{
+    const wg = new THREE.Group();
+    const whl = new THREE.Mesh(whlGeo, whlMat);
+    whl.rotation.z = Math.PI/2;
+    wg.add(whl);
+    const rim = new THREE.Mesh(rimGeo, rimMat);
+    rim.rotation.z = Math.PI/2;
+    wg.add(rim);
+    wg.position.set(x,y,z);
+    g.add(wg);
+    DRIVE.wheels.push(wg);
+  });
+
+  // Shadow disc under car
+  const shadowGeo = new THREE.CircleGeometry(2.4, 24);
+  const shadowMat = new THREE.MeshBasicMaterial({color:0x000000, transparent:true, opacity:0.22, depthWrite:false});
+  const shadow = new THREE.Mesh(shadowGeo, shadowMat);
+  shadow.rotation.x = -Math.PI/2;
+  shadow.position.y = 0.02;
+  g.add(shadow);
+
+  // Point light above car
+  const carLight = new THREE.PointLight(0xffffff, 0.6, 18);
+  carLight.position.set(0, 4, 0);
+  g.add(carLight);
+
+  DRIVE.carGroup = g;
+  scene.add(g);
+  _repositionCar();
+}
+
+function _repositionCar(){
+  if(!DRIVE.carGroup || !modelTransform) return;
+  const loc = toLocal(DRIVE.lng, DRIVE.lat);
+  DRIVE.carGroup.position.set(loc.x, 0, loc.z);
+  // heading: 0=north means facing +Z in local (since Z = south in our Mercator space)
+  // Three.js: rotation around Y. heading 0 = north = -Z world = rotation 0
+  DRIVE.carGroup.rotation.y = -DRIVE.heading * Math.PI / 180;
+}
+
+function drivePhysicsStep(dt){
+  const k = DRIVE.keys;
+  const fwd  = k['w']||k['arrowup'];
+  const back  = k['s']||k['arrowdown'];
+  const left  = k['a']||k['arrowleft'];
+  const right = k['d']||k['arrowright'];
+
+  // Acceleration / braking
+  if(fwd){
+    DRIVE.speed = Math.min(DRIVE.MAX_SPEED, DRIVE.speed + DRIVE.ACCEL * dt);
+  } else if(back){
+    if(DRIVE.speed > 0.1)
+      DRIVE.speed = Math.max(0, DRIVE.speed - DRIVE.BRAKE * dt);
+    else
+      DRIVE.speed = Math.max(-DRIVE.MAX_SPEED * 0.4, DRIVE.speed - DRIVE.ACCEL * dt * 0.6);
+  } else {
+    // friction
+    const sign = DRIVE.speed > 0 ? 1 : -1;
+    DRIVE.speed -= sign * Math.min(Math.abs(DRIVE.speed), DRIVE.FRICTION * dt);
+    if(Math.abs(DRIVE.speed) < 0.05) DRIVE.speed = 0;
+  }
+
+  // Steering
+  const targetSteer = left ? -1 : right ? 1 : 0;
+  const steerDelta = targetSteer !== 0
+    ? DRIVE.STEER_SPEED * dt * (targetSteer - DRIVE.steer)
+    : -DRIVE.steer * DRIVE.STEER_RETURN * dt;
+  DRIVE.steer = Math.max(-1, Math.min(1, DRIVE.steer + steerDelta));
+
+  // Turn rate scales with speed (no spinning in place), reversed when reversing
+  const speedFactor = Math.min(1, Math.abs(DRIVE.speed) / 4);
+  const reverseSign = DRIVE.speed < 0 ? -1 : 1;
+  DRIVE.heading += DRIVE.steer * DRIVE.TURN_RATE * speedFactor * reverseSign * dt;
+  DRIVE.heading = ((DRIVE.heading % 360) + 360) % 360;
+
+  // Move in heading direction
+  if(Math.abs(DRIVE.speed) > 0.001){
+    const rad = DRIVE.heading * Math.PI / 180;
+    const dNorth = Math.cos(rad) * DRIVE.speed * dt;
+    const dEast  = Math.sin(rad) * DRIVE.speed * dt;
+    DRIVE.lat += dNorth / M_PER_DEG_LAT;
+    DRIVE.lng += dEast  / mPerDegLng(DRIVE.lat);
+  }
+
+  // Wheel roll animation
+  DRIVE.wheelRotation += DRIVE.speed * dt * 1.8;
+  DRIVE.wheels.forEach((wg, i)=>{
+    wg.children[0].rotation.x = DRIVE.wheelRotation;
+    wg.children[1].rotation.x = DRIVE.wheelRotation;
+    // Front wheels steer visually
+    if(i < 2) wg.rotation.y = DRIVE.steer * 0.38;
+  });
+}
+
+function driveFollowMap(){
+  if(!DRIVE.active || !map) return;
+  try{
+    map.easeTo({
+      center:{lat:DRIVE.lat, lng:DRIVE.lng},
+      bearing: DRIVE.heading,
+      pitch: 55,
+      zoom: 17,
+      duration: 80,
+      easing: t=>t
+    });
+  }catch(e){}
+}
+
+let driveLastTime = null;
+function driveLoop(ts){
+  if(!DRIVE.active){ driveLastTime=null; return; }
+  const dt = driveLastTime ? Math.min((ts - driveLastTime)/1000, 0.05) : 0.016;
+  driveLastTime = ts;
+
+  drivePhysicsStep(dt);
+  _repositionCar();
+  driveFollowMap();
+  updateDriveHud();
+
+  requestAnimationFrame(driveLoop);
+}
+
+function updateDriveHud(){
+  const kmh = Math.round(Math.abs(DRIVE.speed) * 3.6);
+  const hudSpeed = document.getElementById('hudSpeed');
+  hudSpeed.textContent = kmh;
+  hudSpeed.classList.toggle('fast', kmh > 70);
+
+  const gear = DRIVE.speed < -0.1 ? 'R' : DRIVE.speed < 0.1 ? 'N' : kmh < 25 ? '1' : kmh < 45 ? '2' : kmh < 65 ? '3' : '4';
+  document.getElementById('hudGear').textContent = gear;
+  document.getElementById('hudLat').textContent  = DRIVE.lat.toFixed(5)+'°N';
+  document.getElementById('hudLng').textContent  = DRIVE.lng.toFixed(5)+'°E';
+}
+
+function enterDriveMode(){
+  if(DRIVE.active) return;
+  DRIVE.active = true;
+  DRIVE.lat = map.getCenter().lat;
+  DRIVE.lng = map.getCenter().lng;
+  DRIVE.heading = map.getBearing();
+  DRIVE.speed = 0; DRIVE.steer = 0;
+  document.body.classList.add('drive-mode');
+  document.getElementById('driveModeBtn').classList.add('active');
+  if(!DRIVE.carGroup) buildCarMesh();
+  else _repositionCar();
+  if(DRIVE.carGroup) DRIVE.carGroup.visible = true;
+  requestAnimationFrame(driveLoop);
+}
+
+function exitDriveMode(){
+  if(!DRIVE.active) return;
+  DRIVE.active = false;
+  DRIVE.keys = {};
+  document.body.classList.remove('drive-mode');
+  document.getElementById('driveModeBtn').classList.remove('active');
+  if(DRIVE.carGroup) DRIVE.carGroup.visible = false;
+  try{
+    map.easeTo({pitch:is3DMode?60:0, bearing:0, duration:600});
+  }catch(e){}
+}
+
+// Key capture — only when drive mode active
+document.addEventListener('keydown', e=>{
+  if(!DRIVE.active) return;
+  const k = e.key.toLowerCase();
+  DRIVE.keys[k] = true;
+  if(k==='escape'){ exitDriveMode(); e.preventDefault(); return; }
+  // Prevent page scroll on arrow keys
+  if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(k)) e.preventDefault();
+});
+document.addEventListener('keyup', e=>{
+  DRIVE.keys[e.key.toLowerCase()] = false;
+});
+
+document.getElementById('driveModeBtn').addEventListener('click', ()=>{
+  DRIVE.active ? exitDriveMode() : enterDriveMode();
+});
+
+// Rebuild car when Three.js scene is ready (boot3 fires later)
+const _origBoot3Probe = setInterval(()=>{
+  if(scene && window.THREE && modelTransform){
+    clearInterval(_origBoot3Probe);
+    // car will be built on first enterDriveMode() call
+  }
+},200);
+
 })();

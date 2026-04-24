@@ -141,8 +141,37 @@
 
       <div id="mapControls">
         <button class="map-control-btn active" id="toggle3DBtn">🏔️</button>
+        <button class="map-control-btn" id="driveModeBtn" title="Drive Mode">🚗</button>
         <button class="map-control-btn" id="zoomInBtn">+</button>
         <button class="map-control-btn" id="zoomOutBtn">−</button>
+      </div>
+
+      <!-- DRIVE HUD -->
+      <div id="driveHud">
+        <div id="driveHudInner">
+          <div class="hud-block">
+            <div class="hud-val" id="hudSpeed">0</div>
+            <div class="hud-lbl">km/h</div>
+          </div>
+          <div class="hud-sep"></div>
+          <div class="hud-block">
+            <div class="hud-val" id="hudGear">N</div>
+            <div class="hud-lbl">gear</div>
+          </div>
+          <div class="hud-sep"></div>
+          <div class="hud-block hud-coords">
+            <div class="hud-val hud-val-sm" id="hudLat">—</div>
+            <div class="hud-val hud-val-sm" id="hudLng">—</div>
+            <div class="hud-lbl">position</div>
+          </div>
+        </div>
+        <div id="hudControls">
+          <span class="hud-key">W/↑</span> Drive &nbsp;
+          <span class="hud-key">S/↓</span> Brake &nbsp;
+          <span class="hud-key">A/↓</span> Left &nbsp;
+          <span class="hud-key">D/→</span> Right &nbsp;
+          <span class="hud-key">ESC</span> Exit
+        </div>
       </div>
 
       <div class="map-scale map-scale-right" id="mapScaleRight" aria-hidden="true">
