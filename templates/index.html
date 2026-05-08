@@ -27,17 +27,12 @@
 <div class="app-shell">
   <header class="app-header">
     <div class="brand-block">
-      <div class="brand-logo-wrap">
+      <button class="brand-logo-wrap" id="brandSidebarToggle" type="button" aria-label="Toggle sidebar" title="Toggle controls">
         <img class="brand-logo" src="{{ url_for('static', filename='AIRESQ_LOGO.png') }}" alt="AIRESQ logo">
-      </div>
+      </button>
       <div class="brand-copy">
         <div class="brand-title-row">
           <h1 class="app-title">FloodTwin</h1>
-          <button id="headerSidebarToggle" class="header-sidebar-toggle" type="button" aria-label="Toggle sidebar" title="Toggle controls">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <polyline points="15 18 9 12 15 6"></polyline>
-            </svg>
-          </button>
         </div>
         <p class="app-subtitle">AIResQ ClimSols Flood Intelligence Console</p>
       </div>
@@ -49,8 +44,6 @@
   <div class="app-body">
     <!-- SIDEBAR -->
     <div id="sidebar">
-      <button id="collapseBtn">‹</button>
-
       <div id="searchWrap">
         <div id="searchRow">
           <span id="srchIcon">🔍</span>
@@ -111,6 +104,19 @@
           <div class="asset-skel"></div><div class="asset-skel"></div><div class="asset-skel"></div>
           <div class="asset-skel"></div><div class="asset-skel"></div><div class="asset-skel"></div>
         </div>
+        <div id="assetList"></div>
+      </div>
+      <div class="panel-divider"></div>
+
+      <div class="panel roads-panel">
+        <div class="panel-header">
+          <div class="panel-header-left"><span class="panel-icon">🛣️</span><span class="panel-title">Road Status</span></div>
+          <span class="panel-badge" id="roadBadge">—</span>
+        </div>
+        <button class="road-toggle-btn" id="roadOverlayToggle">Enable Road Overlay</button>
+        <div id="roadList" class="road-list">
+          <p class="road-empty">Enable overlay to analyse road passability</p>
+        </div>
       </div>
     </div>
 
@@ -130,6 +136,17 @@
         </div>
       </div>
 
+      <!-- ROAD STATUS POPUP -->
+      <div id="roadPopup">
+        <div class="rp-card">
+          <button class="rp-close" id="rpClose">✕</button>
+          <div class="rp-head"><span>🛣️</span><span class="rp-head-title">Road Status</span></div>
+          <div class="rp-name" id="rpName">—</div>
+          <div class="rp-depth-row"><span class="rp-val" id="rpVal">—</span><span class="rp-unit">m depth</span></div>
+          <div class="rp-status" id="rpStatus">—</div>
+        </div>
+      </div>
+
       <!-- LEGEND -->
       <div id="legend">
         <div class="legend-header"><span>💧</span><span class="legend-title">Flood Depth</span></div>
@@ -144,7 +161,6 @@
         <button class="map-control-btn" id="zoomInBtn">+</button>
         <button class="map-control-btn" id="zoomOutBtn">−</button>
       </div>
-
 
       <div class="map-scale map-scale-right" id="mapScaleRight" aria-hidden="true">
         <div class="map-scale-bar"></div>

@@ -6,15 +6,18 @@ binary data with long-lived cache headers.
 """
 
 import os
+import urllib.request
+import urllib.parse
 from pathlib import Path
 
-from flask import Flask, abort, jsonify, render_template, send_from_directory
+from flask import Flask, abort, jsonify, render_template, request, send_from_directory, Response
 
 BASE_DIR = Path(__file__).parent.resolve()
-CHUNKS_DIR = BASE_DIR / "chunks"
+CHUNKS_DIR   = BASE_DIR / "chunks"
+DEM_TILES_DIR = BASE_DIR / "static" / "dem_tiles"
 
 DEFAULT_MAPPLS_KEY = "07ed2c801ad7e2fd64b3fdffd084b0be"
-ONE_WEEK_SECONDS = 60 * 60 * 24 * 7
+ONE_WEEK_SECONDS   = 60 * 60 * 24 * 7
 
 app = Flask(
     __name__,
@@ -70,6 +73,55 @@ def chunks(filename: str):
         filename,
         mimetype="application/octet-stream",
     ))
+
+
+@app.route("/dem_tiles/<int:z>/<int:x>/<int:y>.png")
+def dem_tiles(z: int, x: int, y: int):
+    if not (9 <= z <= 13):
+        abort(404)
+    tile_path = DEM_TILES_DIR / str(z) / str(x) / f"{y}.png"
+    if not tile_path.exists():
+        abort(404)
+    return _cache(send_from_directory(
+        str(tile_path.parent),
+        tile_path.name,
+        mimetype="image/png",
+    ))
+
+
+@app.route("/api/route")
+def route_proxy():
+    """Proxy Mappls route_adv to avoid browser CORS restriction."""
+    pts = request.args.get("pts", "")
+    if not pts:
+        return jsonify(error="missing pts"), 400
+    # Validate: only allow two semicolon-separated lng,lat pairs
+    parts = pts.split(";")
+    if len(parts) != 2:
+        return jsonify(error="exactly two waypoints required"), 400
+    for part in parts:
+        coords = part.split(",")
+        if len(coords) != 2:
+            return jsonify(error="bad coordinate format"), 400
+        try:
+            float(coords[0]); float(coords[1])
+        except ValueError:
+            return jsonify(error="non-numeric coordinate"), 400
+
+    key = _mappls_api_key()
+    url = (
+        f"https://apis.mappls.com/advancedmaps/v1/{key}"
+        f"/route_adv/driving/{urllib.parse.quote(pts, safe=',;.')}"
+        f"?geometries=geojson&overview=full"
+    )
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "FloodTwin/1.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            body = resp.read()
+        return Response(body, mimetype="application/json")
+    except Exception as exc:
+        return jsonify(error=str(exc)), 502
+
 
 
 @app.route("/healthz")

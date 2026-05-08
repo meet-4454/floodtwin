@@ -10,7 +10,7 @@ const CFG = window.FLOODTWIN_CONFIG || {
 function loadMapplsSDK(cb) {
   if (window.mappls && typeof window.mappls.Map === 'function') { cb(); return; }
   if (!CFG.mapplsApiKey) {
-    setStatus('❌ Mappls API key not configured on server (MAPPLS_API_KEY).');
+    setStatus('❌ Mappls API key not configured on server (MAPPLS_API_KEY).'); 
     return;
   }
   var s = document.createElement('script');
@@ -44,7 +44,7 @@ const NOM_UA='FloodTwin/1.0';
 const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
 
 const GRID_W=512,GRID_H=512;
-const PLANE_SEG=384;
+const PLANE_SEG=192;
 const DEPTH_MAX=3.0;
 
 let map,glMap,scene,camera,renderer,modelTransform;
@@ -92,7 +92,7 @@ function pointInPolygon(lng,lat,ring){
 
 // ── Flood popup ───────────────────────────────────────────────────────────────
 const SEV=[
-  {max:0.5,label:'Low',bg:'#e6f7f9',color:'#0e7490',dot:'#B3EBF7'},
+  {max:0.5,label:' ',bg:'#e6f7f9',color:'#0e7490',dot:'#B3EBF7'},
   {max:1.0,label:'Moderate',bg:'#cceef5',color:'#0369a1',dot:'#7BCFEE'},
   {max:2.0,label:'High',bg:'#b3dde8',color:'#155e75',dot:'#4B93C8'},
   {max:Infinity,label:'Severe',bg:'#264351',color:'#fff',dot:'#0D2E61'}
@@ -163,94 +163,197 @@ async function tryFloodHit(screenX,screenY,lat,lng){
 }
 
 // ── Critical Assets ───────────────────────────────────────────────────────────
-const ASSET_CATS=[
-  {key:'hospital',icon:'🏥',label:'Hospitals',accent:'#ef4444'},
-  {key:'school',icon:'🏫',label:'Schools',accent:'#10b981'},
-  {key:'college',icon:'🎓',label:'Colleges',accent:'#06b6d4'},
-  {key:'fire_station',icon:'🚒',label:'Fire Stations',accent:'#f43f5e'},
-  {key:'police',icon:'🚔',label:'Police',accent:'#6366f1'},
-  {key:'pharmacy',icon:'💊',label:'Pharmacies',accent:'#14b8a6'}
+const CRITICAL_ASSETS = [
+  { key:'hospital',     label:'Hospitals',       icon:'🏥', accent:'#ef4444', amenity:['hospital']             },
+  { key:'school',       label:'Schools',         icon:'🏫', accent:'#10b981', amenity:['school']               },
+  { key:'college',      label:'Colleges',        icon:'🎓', accent:'#06b6d4', amenity:['college','university'] },
+  { key:'fire_station', label:'Fire Stations',   icon:'🚒', accent:'#f43f5e', amenity:['fire_station']         },
+  { key:'police',       label:'Police Stations', icon:'🚔', accent:'#6366f1', amenity:['police']               },
+  { key:'pharmacy',     label:'Pharmacies',      icon:'💊', accent:'#14b8a6', amenity:['pharmacy']             },
 ];
-const catMarkers={},catEnabled={},catFeatures={};
-ASSET_CATS.forEach(c=>{catMarkers[c.key]=[];catEnabled[c.key]=false;catFeatures[c.key]=null;});
-const AMENITY_TO_KEY={hospital:'hospital',school:'school',university:'college',college:'college',fire_station:'fire_station',police:'police',pharmacy:'pharmacy'};
 
-function renderAssetPills(){
-  const grid=document.getElementById('assetGrid');
-  grid.innerHTML=ASSET_CATS.map(c=>`<div class="asset-pill" data-cat="${c.key}" style="--pill-accent:${c.accent}"><span class="pill-icon">${c.icon}</span><span class="pill-label">${c.label}</span><span class="pill-count" id="cnt-${c.key}">0</span></div>`).join('');
-  grid.querySelectorAll('.asset-pill').forEach(pill=>{
-    pill.addEventListener('click',()=>{
-      const key=pill.dataset.cat;catEnabled[key]=!catEnabled[key];
-      pill.classList.toggle('on',catEnabled[key]);
-      catEnabled[key]?showMarkers(key):hideMarkers(key);
-    });
-  });
+const GURUGRAM_BBOX = '28.20,76.70,28.60,77.30';
+const _OVERPASS_ENDPOINTS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+];
+
+const _assetMarkers = {};  // key → [{el, lat, lng, posUpdate}]
+const _assetResults = {};  // key → [{name,lat,lng,address}]
+const _assetVisible = {};  // key → boolean
+CRITICAL_ASSETS.forEach(c => { _assetMarkers[c.key] = []; _assetVisible[c.key] = false; });
+
+function clearAssetMarkers(code) {
+  _assetMarkers[code].forEach(m => m.el.remove());
+  _assetMarkers[code] = [];
 }
-function hideMarkers(key){catMarkers[key].forEach(m=>m.el.remove());catMarkers[key]=[];document.querySelectorAll('.osm-popup').forEach(p=>p.remove());}
-function showMarkers(key){if(catFeatures[key]?.length>0)addMarkers(key,catFeatures[key]);}
-function addMarkers(key,features){
-  hideMarkers(key);
-  const cat=ASSET_CATS.find(c=>c.key===key);
-  const mapEl=document.getElementById('map');
-  features.forEach(f=>{
-    const[lng,lat]=f.geometry.coordinates;
-    const p=f.properties;
-    const name=p.name||p['name:en']||p['name:hi']||p.operator||'Unnamed';
-    const addrLine=[p['addr:housename'],p['addr:housenumber'],p['addr:street']||p['addr:place'],p['addr:city']||p['addr:district'],p['addr:state']].filter(Boolean).join(', ');
-    const el=document.createElement('div');el.className='osm-marker';el.style.background=cat.accent;el.textContent=cat.icon;
+
+function syncAllMarkers() {
+  CRITICAL_ASSETS.forEach(c => _assetMarkers[c.key].forEach(m => m.posUpdate()));
+  repositionFloodPopup();
+}
+
+function _renderAssetMarkers(code, locs) {
+  if (!map) return;
+  clearAssetMarkers(code);
+  if (!_assetVisible[code]) return;
+  const cfg   = CRITICAL_ASSETS.find(c => c.key === code);
+  const mapEl = document.getElementById('map');
+
+  locs.forEach(loc => {
+    const { lat, lng, name, address } = loc;
+
+    const el = document.createElement('div');
+    el.className = 'osm-label-marker';
+    el.style.borderColor = cfg.accent;
+    el.style.color = cfg.accent;
+    const iconSpan = document.createElement('span');
+    iconSpan.className = 'label-icon';
+    iconSpan.textContent = cfg.icon;
+    el.appendChild(iconSpan);
+    const textSpan = document.createElement('span');
+    textSpan.className = 'label-text';
+    textSpan.textContent = name;
+    el.appendChild(textSpan);
     mapEl.appendChild(el);
-    const posUpdate=()=>{try{const pt=map.project({lat,lng});el.style.transform=`translate3d(${pt.x}px,${pt.y}px,0) translate(-50%,-100%)`;}catch(e){}};
+
+    const posUpdate = () => {
+      try {
+        const pt = map.project({ lat, lng });
+        el.style.transform = `translate3d(${pt.x}px,${pt.y}px,0) translate(-50%,-100%)`;
+      } catch(e) {}
+    };
     posUpdate();
-    el.addEventListener('click',e=>{
-      e.stopPropagation();document.querySelectorAll('.osm-popup').forEach(p=>p.remove());
-      const pop=document.createElement('div');pop.className='osm-popup';
-      pop.innerHTML=`<button class="popup-close">✕</button><div class="popup-name">${esc(name)}</div><div class="popup-type">${esc(cat.label)}</div>${addrLine?`<div class="popup-addr">${esc(addrLine)}</div>`:''}`;
-      const setPopPos=()=>{try{const pt=map.project({lat,lng});pop.style.transform=`translate3d(${pt.x}px,${pt.y-44}px,0)`;}catch(e){}};
+
+    el.addEventListener('click', ev => {
+      ev.stopPropagation();
+      document.querySelectorAll('.osm-popup').forEach(p => p.remove());
+      const pop = document.createElement('div');
+      pop.className = 'osm-popup';
+      pop.innerHTML = `<button class="popup-close">✕</button>
+        <div class="popup-name">${esc(name)}</div>
+        <div class="popup-type">${esc(cfg.label)}</div>
+        ${address ? `<div class="popup-addr">${esc(address)}</div>` : ''}`;
+      const setPopPos = () => {
+        try {
+          const pt = map.project({ lat, lng });
+          pop.style.transform = `translate3d(${pt.x}px,${pt.y - 44}px,0)`;
+        } catch(e) {}
+      };
       setPopPos();
       mapEl.appendChild(pop);
-      map.on('move',setPopPos);
-      pop.querySelector('.popup-close').addEventListener('click',()=>{pop.remove();try{map.off('move',setPopPos);}catch(e){}});
+      map.on('move', setPopPos);
+      pop.querySelector('.popup-close').addEventListener('click', () => {
+        pop.remove();
+        try { map.off('move', setPopPos); } catch(e) {}
+      });
     });
-    catMarkers[key].push({el,lat,lng,posUpdate});
-  });
-  const badge=document.getElementById('cnt-'+key);if(badge)badge.textContent=features.length;
-}
-function syncAllMarkers(){ASSET_CATS.forEach(c=>catMarkers[c.key].forEach(m=>m.posUpdate()));repositionFloodPopup();}
 
-async function fetchAllOverpass(){
-  const bbox='28.20,76.70,28.60,77.30';
-  const amenities=['hospital','school','university','college','fire_station','police','pharmacy'];
-  const stmts=amenities.flatMap(a=>[`node["amenity"="${a}"](${bbox});`,`way["amenity"="${a}"](${bbox});`]).join('');
-  const ql=`[out:json][timeout:40];(${stmts});out center tags;`;
-  const endpoints=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'];
-  for(let i=0;i<4;i++){
-    try{
-      const ctrl=new AbortController();const tid=setTimeout(()=>ctrl.abort(),42000);
-      const res=await fetch(endpoints[i%endpoints.length]+'?data='+encodeURIComponent(ql),{signal:ctrl.signal});clearTimeout(tid);
-      if(res.status===429||res.status===504){await sleep(2000*(i+1));continue;}
-      if(!res.ok){await sleep(1500);continue;}
-      const json=await res.json();
-      return(json.elements||[]).filter(el=>(el.lat!=null&&el.lon!=null)||el.center);
-    }catch(e){if(i<3)await sleep(1500*(i+1));}
+    _assetMarkers[code].push({ el, lat, lng, posUpdate });
+  });
+}
+
+function _setCount(code, n) {
+  const el = document.getElementById('asset-count-' + code);
+  if (el) el.textContent = n;
+}
+
+function _buildAssetRows() {
+  const grid = document.getElementById('assetGrid');
+  if (!grid) return;
+  grid.innerHTML = CRITICAL_ASSETS.map(cfg =>
+    `<div class="asset-row" data-code="${cfg.key}" style="--row-accent:${cfg.accent}">
+       <span class="asset-row-icon">${cfg.icon}</span>
+       <span class="asset-row-label">${cfg.label}</span>
+       <span class="asset-row-count" id="asset-count-${cfg.key}">—</span>
+     </div>`
+  ).join('');
+
+  grid.querySelectorAll('.asset-row').forEach(row => {
+    const code = row.dataset.code;
+    _assetVisible[code] = false;
+    row.classList.add('asset-row--off');
+    row.addEventListener('click', () => {
+      _assetVisible[code] = !_assetVisible[code];
+      row.classList.toggle('asset-row--off', !_assetVisible[code]);
+      if (_assetVisible[code]) {
+        if (_assetResults[code]) _renderAssetMarkers(code, _assetResults[code]);
+      } else {
+        clearAssetMarkers(code);
+      }
+    });
+  });
+}
+
+// Single batched query with dual-endpoint retry/backoff
+async function _fetchAllCategories() {
+  const stmts = CRITICAL_ASSETS.flatMap(cfg =>
+    cfg.amenity.flatMap(a => [
+      `node["amenity"="${a}"](${GURUGRAM_BBOX});`,
+      `way["amenity"="${a}"](${GURUGRAM_BBOX});`,
+    ])
+  ).join('');
+  const query = `[out:json][timeout:60];(${stmts});out center tags;`;
+
+  for (let i = 0; i < 4; i++) {
+    try {
+      const ctrl = new AbortController();
+      const tid  = setTimeout(() => ctrl.abort(), 65000);
+      const res  = await fetch(
+        _OVERPASS_ENDPOINTS[i % 2] + '?data=' + encodeURIComponent(query),
+        { signal: ctrl.signal }
+      );
+      clearTimeout(tid);
+      if (res.status === 429 || res.status === 504) { await sleep(2000 * (i + 1)); continue; }
+      if (!res.ok) { await sleep(1500); continue; }
+      const json = await res.json();
+
+      const amenityToCode = {};
+      CRITICAL_ASSETS.forEach(cfg => cfg.amenity.forEach(a => { amenityToCode[a] = cfg.key; }));
+      const buckets = {};
+      CRITICAL_ASSETS.forEach(cfg => { buckets[cfg.key] = []; });
+
+      for (const el of json.elements || []) {
+        const amenity = el.tags?.amenity;
+        const code = amenityToCode[amenity];
+        if (!code) continue;
+        const lat = el.lat ?? el.center?.lat;
+        const lng = el.lon ?? el.center?.lon;
+        if (!lat || !lng) continue;
+        buckets[code].push({
+          name: el.tags?.name || el.tags?.['name:en'] || 'Unnamed',
+          lat, lng,
+          address: [
+            el.tags?.['addr:housenumber'],
+            el.tags?.['addr:street'] || el.tags?.['addr:place'],
+            el.tags?.['addr:city']   || el.tags?.['addr:district'],
+          ].filter(Boolean).join(', '),
+        });
+      }
+      return buckets;
+    } catch(e) {
+      if (i < 3) await sleep(1500 * (i + 1));
+    }
   }
-  return[];
+  throw new Error('All Overpass endpoints failed');
 }
 
-async function loadAllAssets(){
-  renderAssetPills();
-  const ab=document.getElementById('assetBadge');ab.textContent='Loading…';
-  const elements=await fetchAllOverpass();
-  const buckets={};ASSET_CATS.forEach(c=>{buckets[c.key]=[];});
-  elements.forEach(el=>{
-    const key=AMENITY_TO_KEY[(el.tags||{}).amenity];if(!key)return;
-    buckets[key].push({type:'Feature',geometry:{type:'Point',coordinates:[el.lon??el.center.lon,el.lat??el.center.lat]},properties:el.tags||{}});
+function loadAllAssets() {
+  _buildAssetRows();
+  const ab = document.getElementById('assetBadge');
+  if (ab) { ab.textContent = 'Loading…'; ab.style.background = ''; ab.style.color = ''; }
+
+  _fetchAllCategories().then(buckets => {
+    for (const [code, locs] of Object.entries(buckets)) {
+      _assetResults[code] = locs;
+      _setCount(code, locs.length);
+      _renderAssetMarkers(code, locs);
+    }
+    if (ab) { ab.textContent = 'Ready'; ab.style.background = '#B1DEE2'; ab.style.color = '#264351'; }
+  }).catch(err => {
+    console.warn('[Assets] Overpass failed:', err);
+    if (ab) { ab.textContent = 'Failed'; ab.style.background = '#fde68a'; ab.style.color = '#92400e'; }
   });
-  ASSET_CATS.forEach(c=>{
-    catFeatures[c.key]=buckets[c.key];
-    const badge=document.getElementById('cnt-'+c.key);if(badge)badge.textContent=buckets[c.key].length;
-    if(catEnabled[c.key]&&buckets[c.key].length>0)addMarkers(c.key,buckets[c.key]);
-  });
-  ab.textContent='Ready';ab.style.background='#B1DEE2';ab.style.color='#264351';
 }
 
 // ── Search ────────────────────────────────────────────────────────────────────
@@ -269,9 +372,12 @@ function initSearch(){
     const{lat,lng}=e.lngLat;
     const{x:sx,y:sy}=e.point;
     const rect=document.getElementById('map').getBoundingClientRect();
-    document.querySelectorAll('.osm-popup').forEach(p=>p.remove());
+    document.querySelectorAll('.asset-popup').forEach(p=>p.remove());
+    // Road overlay click is handled by the layer-specific handler; skip here
+    if(roadOverlayEnabled&&map.queryRenderedFeatures(e.point,{layers:['flooded-roads-fill']}).length)return;
     const hit=await tryFloodHit(rect.left+sx,rect.top+sy,lat,lng);if(hit)return;
     fpPopup.style.display='none';fpLat=fpLng=null;
+    roadPopup.style.display='none';rpLat=rpLng=null;
     const label=await nominatimReverse(lat,lng);input.value=label;flyPin(lat,lng,label);
   });
 }
@@ -363,9 +469,26 @@ const VERT_SRC=`
 uniform float uTime;
 uniform sampler2D uDepthTex;
 uniform float uWaveAmp;
+// Ripple: xy = local XZ position, z = time of impact (uTime value when triggered)
+uniform vec3 uRipple0;
+uniform vec3 uRipple1;
+uniform vec3 uRipple2;
+uniform vec3 uRipple3;
 varying float vDepth;
 varying vec2 vUv;
 varying vec3 vWP;
+
+float rippleDisplace(vec3 rip, vec3 p, float t){
+  if(rip.z < 0.0) return 0.0;
+  float age = t - rip.z;
+  if(age < 0.0 || age > 2.2) return 0.0;
+  float dist = length(vec2(p.x - rip.x, p.z - rip.y));
+  float speed = 18.0;
+  float wavefront = age * speed;
+  float falloff = exp(-dist * 0.012) * exp(-age * 1.8);
+  float wave = sin((dist - wavefront) * 0.55) * falloff * 0.6;
+  return wave * smoothstep(0.0, 0.4, age) * (1.0 - smoothstep(1.8, 2.2, age));
+}
 
 void main(){
   vUv = uv;
@@ -376,7 +499,11 @@ void main(){
   vec3 p = position;
   float w = sin(p.x*0.55 + t*1.7) * cos(p.z*0.60 + t*1.2)
           + 0.55*sin((p.x*0.90 - p.z*0.70)*0.85 + t*1.45);
-  p.y = w * uWaveAmp * df;
+  float rip = rippleDisplace(uRipple0, p, t)
+            + rippleDisplace(uRipple1, p, t)
+            + rippleDisplace(uRipple2, p, t)
+            + rippleDisplace(uRipple3, p, t);
+  p.y = (w * uWaveAmp + rip) * df;
   vWP = p;
   gl_Position = projectionMatrix * modelViewMatrix * vec4(p,1.0);
 }`;
@@ -387,6 +514,10 @@ uniform float uOpacity;
 uniform float uMaxDepth;
 uniform sampler2D uDepthTex;
 uniform vec2 uTexelSize;
+uniform vec3 uRipple0;
+uniform vec3 uRipple1;
+uniform vec3 uRipple2;
+uniform vec3 uRipple3;
 varying float vDepth;
 varying vec2 vUv;
 varying vec3 vWP;
@@ -469,6 +600,20 @@ void main(){
   float caustic = pow(clamp(1.0 - abs(nA - nB), 0.0, 1.0), 8.0);
   col += vec3(0.6, 0.9, 1.0) * caustic * 0.07 * (1.0 - d);
 
+  // Ripple highlight: bright ring at the wavefront of each active ripple
+  float ripHighlight = 0.0;
+  for(int ri=0; ri<4; ri++){
+    vec3 rip = (ri==0)?uRipple0:(ri==1)?uRipple1:(ri==2)?uRipple2:uRipple3;
+    if(rip.z < 0.0) continue;
+    float age = uTime - rip.z;
+    if(age < 0.0 || age > 2.2) continue;
+    float dist = length(vec2(vWP.x - rip.x, vWP.z - rip.y));
+    float wavefront = age * 18.0;
+    float ring = exp(-pow(dist - wavefront, 2.0) * 0.08) * exp(-age * 1.4) * 0.55;
+    ripHighlight += ring;
+  }
+  col += vec3(0.75, 0.95, 1.0) * ripHighlight;
+
   gl_FragColor = vec4(col, uOpacity * alphaMask);
 }`;
 
@@ -504,11 +649,13 @@ const customLayer={
       .scale(new THREE.Vector3(modelTransform.scale,-modelTransform.scale,modelTransform.scale))
       .multiply(rx).multiply(ry).multiply(rz);
     camera.projectionMatrix=m.multiply(l);
-    renderer.resetState();renderer.render(scene,camera);glMap.triggerRepaint();
+    renderer.resetState();renderer.render(scene,camera);
+    // do NOT call triggerRepaint here — that causes an infinite repaint loop
   }
 };
 
 let animClock=0,rafId=null;
+
 
 function buildPolygonTexelMap(){
   if(!coordinatesBuffer||!modelTransform||polyToTexel)return;
@@ -589,7 +736,11 @@ function buildWaterSurfaceMesh(){
       uMaxDepth:{value:DEPTH_MAX},
       uDepthTex:{value:depthTexture},
       uTexelSize:{value:new THREE.Vector2(1/GRID_W,1/GRID_H)},
-      uWaveAmp:{value:0.18}
+      uWaveAmp:{value:0.18},
+      uRipple0:{value:new THREE.Vector3(0,0,-1)},
+      uRipple1:{value:new THREE.Vector3(0,0,-1)},
+      uRipple2:{value:new THREE.Vector3(0,0,-1)},
+      uRipple3:{value:new THREE.Vector3(0,0,-1)}
     },
     vertexShader:VERT_SRC,fragmentShader:FRAG_SRC,
     transparent:true,side:THREE.DoubleSide,depthWrite:false
@@ -607,6 +758,7 @@ function ensureWaterSurface(){
   waterSurfaceBuilt=true;
   return true;
 }
+
 
 function updateDepthTexture(depths){
   if(!ensureWaterSurface()||!depthGrid||!depths)return;
@@ -640,7 +792,10 @@ async function initializeVisualization(){
     await Promise.all([loadChunk(0),loadChunk(1)]);
 
     setStatus('100% – Ready!');
-    setTimeout(()=>{document.getElementById('loadingOverlay').classList.add('hidden');updateStep(0);},400);
+    setTimeout(()=>{
+      document.getElementById('loadingOverlay').classList.add('hidden');
+      updateStep(0);
+    },400);
   }catch(err){
     console.error(err);
     setStatus('❌ '+err.message);
@@ -679,6 +834,7 @@ async function updateStep(step){
   lastDepths=depths;
   currentStep=step;updateDepthTexture(depths);
   fpPopup.style.display='none';fpLat=fpLng=null;
+  // once avg depths are ready, init colours; then update per-step
   const nc=Math.floor(step/CHUNK_SIZE)+1;
   if(nc<TOTAL_CHUNKS&&!chunkCache.has(nc)&&!chunkQueue.has(nc))loadChunk(nc).catch(()=>{});
   const b=new Date('2025-07-09T01:55:00');b.setMinutes(b.getMinutes()+step*5);
@@ -686,7 +842,466 @@ async function updateStep(step){
   document.getElementById('timeDisplay').textContent=`${z(b.getDate())}-${MONTHS[b.getMonth()]}-${b.getFullYear()} ${z(b.getHours())}:${z(b.getMinutes())}:${z(b.getSeconds())}`;
   const sl=document.getElementById('timeSlider');sl.value=step;
   sl.style.background=`linear-gradient(to right,#5298A9 ${(step/TOTAL_STEPS*100)}%,#e2e8f0 ${(step/TOTAL_STEPS*100)}%)`;
+  scheduleRoadAnalysis(true);
 }
+
+// ── Road Inundation Analysis ──────────────────────────────────────────────────
+const ROAD_CAUTION_M  = 0.001;
+const ROAD_BLOCKED_M  = 0.30;
+const ROAD_SRC_ID     = 'flooded-roads';
+const ROAD_MIN_ZOOM   = 13;    // overlay only visible at this zoom level and above
+
+let roadOverlayEnabled  = false;
+let roadRafId           = null;
+let _roadLastAnalysisTs = 0;
+
+const roadPopup = document.getElementById('roadPopup');
+let rpLat = null, rpLng = null;
+document.getElementById('rpClose').addEventListener('click', () => {
+  roadPopup.style.display = 'none'; rpLat = rpLng = null;
+});
+
+// ── Road geometry from Mappls rendered features ───────────────────────────────
+// Query the map's own rendered road layers, deduplicate tile-clipped copies,
+// pre-sample at fine intervals, and cache per viewport.  On each timestep the
+// cached samples are tested against active flood polygons (no network calls).
+
+let _roadCache   = null;   // [{ pts:[lng,lat][], name, cls }]
+let _roadBbox    = null;   // { s,w,n,e } of the viewport when cache was built
+let _polyBboxCache = null; // precomputed per-polygon bbox — recomputed only when polygonRings loads
+
+const ROAD_LAYER_EXCLUDE = /label|symbol|text|icon|aeroway|ferry|rail|waterway|landuse|boundary|transit|tunnel.*casing|bridge.*casing/i;
+const MINOR_CLS = /service|parking|footway|cycleway|path|pedestrian|track|steps|alley|driveway/i;
+const MAX_ROAD_WAYS = 5000; // hard cap — worker handles the PIP, main thread stays free
+
+function getRoadLayerIds() {
+  if (!map) return [];
+  return map.getStyle().layers
+    .filter(l => l.type === 'line' && !ROAD_LAYER_EXCLUDE.test(l.id))
+    .map(l => l.id);
+}
+
+// Sample step coarsens with zoom so point counts stay bounded.
+function roadSampleStep() {
+  const z = map ? map.getZoom() : 14;
+  if (z >= 14) return 12;
+  if (z >= 13) return 20;
+  if (z >= 12) return 40;
+  if (z >= 11) return 80;
+  return 160;
+}
+
+// Build the road sample cache from currently rendered Mappls features.
+// Called once on toggle-enable and on moveend; timestep updates skip this.
+function buildRoadCache() {
+  if (!map) return;
+  const zoom = map.getZoom();
+  if (zoom < ROAD_MIN_ZOOM) {
+    _roadCache = [];
+    map.getSource(ROAD_SRC_ID)?.setData({ type:'FeatureCollection', features:[] });
+    updateRoadPanel([]);
+    return;
+  }
+
+  const layerIds = getRoadLayerIds();
+  if (!layerIds.length) return;
+
+  // Query the full viewport — idle event guarantees all tiles are loaded
+  const raw  = map.queryRenderedFeatures(undefined, { layers: layerIds });
+  const seen = new Set();
+  const samples = [];
+  const step = roadSampleStep();
+
+  for (const f of raw) {
+    if (samples.length >= MAX_ROAD_WAYS) break;
+    const lines =
+      f.geometry.type === 'LineString'     ? [f.geometry.coordinates] :
+      f.geometry.type === 'MultiLineString' ? f.geometry.coordinates  : [];
+
+    const name = f.properties?.name || f.properties?.ref || '';
+    const cls  = (f.properties?.class || f.properties?.road_class ||
+                  f.properties?.type  || f.properties?.highway || '').toLowerCase();
+    if (cls && MINOR_CLS.test(cls)) continue;
+
+    for (const line of lines) {
+      if (line.length < 2) continue;
+      const key = `${line[0][0].toFixed(5)},${line[0][1].toFixed(5)}|` +
+                  `${line[line.length-1][0].toFixed(5)},${line[line.length-1][1].toFixed(5)}|` +
+                  line.length;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      samples.push({ pts: sampleRoadLine(line, step), name, cls });
+      if (samples.length >= MAX_ROAD_WAYS) break;
+    }
+  }
+
+  const b = map.getBounds();
+  _roadBbox  = { s:b.getSouth(), w:b.getWest(), n:b.getNorth(), e:b.getEast() };
+  _roadCache = samples;
+  console.log(`[FloodTwin] Road cache: ${samples.length} ways (step=${step}m, zoom=${zoom.toFixed(1)})`);
+}
+
+// Precompute polygon bboxes once so getActiveFloodPolygons never recomputes them.
+function ensurePolyBboxCache() {
+  if (_polyBboxCache || !polygonRings) return;
+  _polyBboxCache = new Float32Array(polygonCount * 4); // [minLng,maxLng,minLat,maxLat] * N
+  for (let p = 0; p < polygonCount; p++) {
+    const ring = polygonRings[p];
+    if (!ring) continue;
+    let minLng=Infinity,maxLng=-Infinity,minLat=Infinity,maxLat=-Infinity;
+    for (const v of ring) {
+      if (v.lng < minLng) minLng=v.lng; if (v.lng > maxLng) maxLng=v.lng;
+      if (v.lat < minLat) minLat=v.lat; if (v.lat > maxLat) maxLat=v.lat;
+    }
+    const i = p * 4;
+    _polyBboxCache[i]=minLng; _polyBboxCache[i+1]=maxLng;
+    _polyBboxCache[i+2]=minLat; _polyBboxCache[i+3]=maxLat;
+  }
+}
+
+
+function lngLatDistM(a, b) {
+  const R = 6371000, dLat = (b[1]-a[1])*Math.PI/180, dLng = (b[0]-a[0])*Math.PI/180;
+  const s = Math.sin(dLat/2)**2 + Math.cos(a[1]*Math.PI/180)*Math.cos(b[1]*Math.PI/180)*Math.sin(dLng/2)**2;
+  return 2*R*Math.asin(Math.sqrt(Math.min(1, s)));
+}
+
+// Interpolate along a LineString at ~stepM metre intervals (fine enough for
+// narrow flood polygons; coarse enough to stay fast for many roads at once)
+function sampleRoadLine(coords, stepM = 8) {
+  const pts = [];
+  for (let i = 0; i < coords.length - 1; i++) {
+    const a = coords[i], b = coords[i+1];
+    const n = Math.max(1, Math.round(lngLatDistM(a, b) / stepM));
+    for (let k = 0; k <= n; k++) {
+      const t = k / n;
+      pts.push([a[0] + (b[0]-a[0])*t, a[1] + (b[1]-a[1])*t]);
+    }
+  }
+  return pts;
+}
+
+// Build a bbox-indexed list of active flood polygons for this timestep.
+// Only polygons visible in the current map viewport are included, cutting the
+// candidate set from ~78k down to the tens actually on screen.
+// Each entry carries precomputed bbox so pointInPolygon is only called when
+// the sample point is inside the bbox — fast reject avoids the ray-cast.
+function getActiveFloodPolygons() {
+  if (!polygonRings || !lastDepths || !map) return [];
+  ensurePolyBboxCache();
+  const b = map.getBounds();
+  const vMinLng = b.getWest(), vMaxLng = b.getEast();
+  const vMinLat = b.getSouth(), vMaxLat = b.getNorth();
+
+  const active = [];
+  for (let p = 0; p < polygonCount; p++) {
+    const d = lastDepths[p];
+    if (d < ROAD_CAUTION_M) continue;
+    const ring = polygonRings[p];
+    if (!ring || ring.length < 3) continue;
+
+    const i = p * 4;
+    const minLng=_polyBboxCache[i], maxLng=_polyBboxCache[i+1];
+    const minLat=_polyBboxCache[i+2], maxLat=_polyBboxCache[i+3];
+    if (maxLng < vMinLng || minLng > vMaxLng || maxLat < vMinLat || minLat > vMaxLat) continue;
+
+    active.push({ ring, depth: d, minLng, maxLng, minLat, maxLat });
+  }
+  return active;
+}
+
+// Build GeoJSON of flooded road stretches by clipping Mappls road lines
+// against active flood polygons for the current timestep.
+// Fast path: bbox reject before ray-cast keeps this well under 1 ms even at
+// peak flood extent.
+function buildFloodedRoadGFC() {
+  if (!_roadCache?.length) return { type:'FeatureCollection', features:[] };
+
+  const active = getActiveFloodPolygons();
+  if (!active.length) return { type:'FeatureCollection', features:[] };
+
+  const out = [];
+
+  for (const { pts, name, cls } of _roadCache) {
+    let inFlood = false, seg = [], maxD = 0;
+
+    const flush = () => {
+      if (seg.length >= 2) out.push({
+        type: 'Feature',
+        geometry: { type:'LineString', coordinates: seg },
+        properties: { name, cls, maxDepth: maxD,
+          status: maxD >= ROAD_BLOCKED_M ? 'blocked' : 'caution' }
+      });
+    };
+
+    for (const pt of pts) {
+      const lng = pt[0], lat = pt[1];
+      let ptDepth = 0;
+      for (const { ring, depth, minLng, maxLng, minLat, maxLat } of active) {
+        // Bbox reject — avoids ray-cast for the vast majority of polygons
+        if (depth <= ptDepth) continue;
+        if (lng < minLng || lng > maxLng || lat < minLat || lat > maxLat) continue;
+        if (pointInPolygon(lng, lat, ring)) ptDepth = depth;
+      }
+
+      if (ptDepth >= ROAD_CAUTION_M) {
+        if (!inFlood) { inFlood = true; seg = []; maxD = 0; }
+        if (ptDepth > maxD) maxD = ptDepth;
+        seg.push(pt);
+      } else if (inFlood) {
+        inFlood = false;
+        flush();
+      }
+    }
+    if (inFlood) flush();
+  }
+
+  return { type:'FeatureCollection', features: out };
+}
+
+// Reverse-geocode a road name via Nominatim; cache by ~50m grid cell to avoid
+// redundant requests when the user clicks nearby points on the same road.
+const _roadNameCache = {};
+async function _roadNameAtPoint(lat, lng) {
+  const cell = `${(lat / 0.0005 | 0)},${(lng / 0.0005 | 0)}`;
+  if (_roadNameCache[cell] !== undefined) return _roadNameCache[cell];
+  try {
+    const r = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&zoom=16&format=json`,
+      { headers: { 'Accept-Language': 'en' } }
+    );
+    if (!r.ok) throw new Error(r.status);
+    const d = await r.json();
+    const name = d?.address?.road || d?.address?.suburb
+               || d?.address?.neighbourhood || d?.name || '';
+    _roadNameCache[cell] = name;
+    return name;
+  } catch(e) {
+    _roadNameCache[cell] = '';
+    return '';
+  }
+}
+
+// Set up MapLibre source + three layers (halo, colour fill, centre dash)
+function initRoadOverlay() {
+  if (!map || map.getSource(ROAD_SRC_ID)) return;
+
+  map.addSource(ROAD_SRC_ID, { type:'geojson', data:{ type:'FeatureCollection', features:[] } });
+
+  // Colour-coded severity line
+  map.addLayer({
+    id:'flooded-roads-fill', type:'line', source:ROAD_SRC_ID,
+    layout:{ 'line-cap':'round','line-join':'round' },
+    paint:{
+      'line-color':['case',
+        ['>=',['get','maxDepth'],0.60],'#dc2626',
+        ['>=',['get','maxDepth'],0.30],'#f97316',
+        '#fbbf24'
+      ],
+      'line-width':['interpolate',['linear'],['get','maxDepth'],0.10,5,2.0,12],
+      'line-opacity':0.93
+    }
+  });
+
+  // White centre dash for a "road closed" look
+  map.addLayer({
+    id:'flooded-roads-dash', type:'line', source:ROAD_SRC_ID,
+    layout:{ 'line-cap':'butt','line-join':'round' },
+    paint:{
+      'line-color':'#fff','line-width':1.5,
+      'line-opacity':0.50,'line-dasharray':[3,5]
+    }
+  });
+
+  // Pointer cursor on hover
+  map.on('mouseenter','flooded-roads-fill', () => { map.getCanvas().style.cursor = 'pointer'; });
+  map.on('mouseleave','flooded-roads-fill', () => { map.getCanvas().style.cursor = ''; });
+
+  // Click a flooded road segment → show road popup
+  map.on('click','flooded-roads-fill', e => {
+    if (!e.features?.length) return;
+    const props = e.features[0].properties;
+    const { lat, lng } = e.lngLat;
+    rpLat = lat; rpLng = lng;
+    const depth = +props.maxDepth;
+    const nameEl = document.getElementById('rpName');
+    nameEl.textContent = props.name || 'Loading…';
+    _roadNameAtPoint(lat, lng).then(n => {
+      nameEl.textContent = n || props.name || 'Unnamed road';
+    });
+    document.getElementById('rpVal').textContent  = depth.toFixed(2);
+    const sev =
+      depth >= 0.60 ? { label:'Impassable', cls:'rp-severe'  } :
+      depth >= 0.30 ? { label:'Blocked (vehicles)', cls:'rp-blocked' } :
+                      { label:'Caution — slow', cls:'rp-caution' };
+    const statusEl = document.getElementById('rpStatus');
+    statusEl.textContent = sev.label;
+    statusEl.className = 'rp-status ' + sev.cls;
+    const container = fpPopupContainer();
+    if (roadPopup.parentNode !== container) container.appendChild(roadPopup);
+    const rect = document.getElementById('map').getBoundingClientRect();
+    const pt   = map.project({ lat, lng });
+    placeRoadPopup(rect.left + pt.x, rect.top + pt.y);
+    roadPopup.style.display = 'block';
+  });
+
+  // Rebuild road cache whenever the view changes and tiles have fully loaded.
+  // Track whether the viewport actually moved so flood-layer updates don't
+  // trigger an unnecessary cache rebuild.
+  let _roadViewDirty = false;
+  map.on('moveend', () => { if (roadOverlayEnabled) _roadViewDirty = true; });
+  map.on('zoomend',  () => { if (roadOverlayEnabled) _roadViewDirty = true; });
+  map.on('idle', () => {
+    if (!roadOverlayEnabled || !_roadViewDirty) return;
+    _roadViewDirty = false;
+    buildRoadCache();
+    scheduleRoadAnalysis(true);
+  });
+}
+
+function placeRoadPopup(px, py) {
+  const w = roadPopup.offsetWidth  || 200;
+  const h = roadPopup.offsetHeight || 130;
+  const margin = 12, vpW = window.innerWidth, vpH = window.innerHeight;
+  let left = px - w/2, top = py - h - margin;
+  left = Math.max(margin, Math.min(left, vpW-w-margin));
+  top  = Math.max(margin, Math.min(top,  vpH-h-margin));
+  roadPopup.style.left = left + 'px';
+  roadPopup.style.top  = top  + 'px';
+}
+
+let _roadWorker = null;
+let _roadWorkerBusy = false;
+let _roadPendingUpdate = false; // a new timestep arrived while worker was busy
+
+function getRoadWorker() {
+  if (!_roadWorker) {
+    _roadWorker = new Worker('/static/js/road_worker.js');
+    _roadWorker.onmessage = (e) => {
+      _roadWorkerBusy = false;
+      if (!roadOverlayEnabled) {
+        // Overlay was disabled while worker was running — discard result
+        _roadPendingUpdate = false;
+        return;
+      }
+      map.getSource(ROAD_SRC_ID)?.setData(e.data);
+      updateRoadPanel(e.data.features);
+      if (_roadPendingUpdate) {
+        _roadPendingUpdate = false;
+        _dispatchToWorker();
+      }
+    };
+  }
+  return _roadWorker;
+}
+
+function _dispatchToWorker() {
+  if (!_roadCache?.length || !roadOverlayEnabled) return;
+  const activePolygons = getActiveFloodPolygons();
+  if (!activePolygons.length) {
+    map.getSource(ROAD_SRC_ID)?.setData({ type:'FeatureCollection', features:[] });
+    updateRoadPanel([]);
+    return;
+  }
+  _roadWorkerBusy = true;
+  _roadLastAnalysisTs = performance.now();
+  getRoadWorker().postMessage({ roadCache: _roadCache, activePolygons, ROAD_CAUTION_M, ROAD_BLOCKED_M });
+}
+
+function scheduleRoadAnalysis(force = false) {
+  if (!roadOverlayEnabled) return;
+  if (!map || map.getZoom() < ROAD_MIN_ZOOM) {
+    map.getSource(ROAD_SRC_ID)?.setData({ type:'FeatureCollection', features:[] });
+    updateRoadPanel([]);
+    return;
+  }
+  if (roadRafId) cancelAnimationFrame(roadRafId);
+  roadRafId = requestAnimationFrame(() => {
+    roadRafId = null;
+    if (_roadWorkerBusy) {
+      _roadPendingUpdate = true;
+      return;
+    }
+    _dispatchToWorker();
+  });
+}
+
+function updateRoadPanel(segs) {
+  const listEl  = document.getElementById('roadList');
+  const badgeEl = document.getElementById('roadBadge');
+  if (!listEl || !badgeEl) return;
+
+  const nBlocked = segs.filter(s => s.properties.status === 'blocked').length;
+  const nCaution = segs.filter(s => s.properties.status === 'caution').length;
+  badgeEl.textContent = nBlocked ? `${nBlocked} blocked` :
+                        nCaution ? `${nCaution} caution` : 'All clear';
+  badgeEl.className = 'panel-badge ' +
+    (nBlocked ? 'rb-blocked' : nCaution ? 'rb-caution' : 'rb-clear');
+
+  if (!segs.length) {
+    listEl.innerHTML = '<p class="road-empty">No flooded roads in current viewport</p>';
+    return;
+  }
+
+  // Group by road name — keep the worst-depth stretch per name
+  const byName = new Map();
+  for (const s of segs) {
+    const k = s.properties.name || '(unnamed road)';
+    const e = byName.get(k);
+    if (!e || s.properties.maxDepth > e.maxDepth) {
+      const mid = s.geometry.coordinates[Math.floor(s.geometry.coordinates.length / 2)];
+      byName.set(k, { ...s.properties, mid });
+    }
+  }
+
+  listEl.innerHTML = [...byName.entries()]
+    .sort((a, b) => b[1].maxDepth - a[1].maxDepth)
+    .map(([name, p]) => {
+      const icon  = p.status === 'blocked' ? '🚫' : '⚠️';
+      const label = p.maxDepth >= 0.60 ? 'Impassable' :
+                    p.maxDepth >= 0.30 ? 'Blocked' : 'Caution';
+      const cls   = p.status === 'blocked' ? 'road-blocked' : 'road-caution';
+      return `<div class="road-item ${cls}" data-lat="${p.mid[1]}" data-lng="${p.mid[0]}">
+        <span class="ri-icon">${icon}</span>
+        <div class="ri-body">
+          <span class="ri-name">${esc(name)}</span>
+          <span class="ri-depth">${p.maxDepth.toFixed(2)} m — ${label}</span>
+        </div>
+      </div>`;
+    }).join('');
+
+  listEl.querySelectorAll('.road-item').forEach(el => {
+    el.addEventListener('click', () => {
+      const lat = +el.dataset.lat, lng = +el.dataset.lng;
+      try { map.flyTo({ center:{lat,lng}, zoom:16, pitch:40 }); } catch(e) {}
+    });
+  });
+}
+
+document.getElementById('roadOverlayToggle').addEventListener('click', () => {
+  roadOverlayEnabled = !roadOverlayEnabled;
+  const btn = document.getElementById('roadOverlayToggle');
+  btn.classList.toggle('active', roadOverlayEnabled);
+  btn.textContent = roadOverlayEnabled ? 'Disable Road Overlay' : 'Enable Road Overlay';
+
+  if (!roadOverlayEnabled) {
+    map.getSource(ROAD_SRC_ID)?.setData({ type:'FeatureCollection', features:[] });
+    updateRoadPanel([]);
+    roadPopup.style.display = 'none';
+    _roadPendingUpdate = false;
+  } else {
+    const zoom = map?.getZoom() ?? 0;
+    if (zoom < ROAD_MIN_ZOOM) {
+      // Tell user to zoom in — don't build cache yet
+      const listEl = document.getElementById('roadList');
+      if (listEl) listEl.innerHTML = `<p class="road-empty">Zoom in to level ${ROAD_MIN_ZOOM}+ to see road overlay</p>`;
+      document.getElementById('roadBadge').textContent = 'Zoom in';
+    } else {
+      buildRoadCache();
+      scheduleRoadAnalysis(true);
+    }
+  }
+});
 
 // ── UI controls ───────────────────────────────────────────────────────────────
 function removeAttribution(){
@@ -695,15 +1310,13 @@ function removeAttribution(){
 setInterval(removeAttribution,5000);
 
 function toggleSidebar(){
-  const sb=document.getElementById('sidebar'),ham=document.getElementById('hamburgerBtn'),chv=document.getElementById('collapseBtn');
+  const sb=document.getElementById('sidebar'),ham=document.getElementById('hamburgerBtn');
   const c=sb.classList.toggle('collapsed');
   document.body.classList.toggle('sidebar-collapsed',c);
   ham.classList.toggle('open',!c);
-  chv.innerHTML=c?'›':'‹';
 }
 document.getElementById('hamburgerBtn').addEventListener('click',toggleSidebar);
-document.getElementById('collapseBtn').addEventListener('click',toggleSidebar);
-document.getElementById('headerSidebarToggle').addEventListener('click',toggleSidebar);
+document.getElementById('brandSidebarToggle').addEventListener('click',toggleSidebar);
 document.getElementById('timeSlider').addEventListener('input',e=>updateStep(+e.target.value));
 document.addEventListener('fullscreenchange',syncFullscreenState);
 
@@ -738,6 +1351,8 @@ document.getElementById('toggle3DBtn').addEventListener('click',()=>{
   try{map.setPitch(is3DMode?60:0);}catch(e){}
 });
 
+// ── Building texture ──────────────────────────────────────────────────────────
+
 // ── BOOT ──────────────────────────────────────────────────────────────────────
 setStatus('Loading map SDK…');
 
@@ -760,23 +1375,34 @@ loadThreeJS(()=>{
 
     document.getElementById('toggle3DBtn').classList.add('active');
 
+    // Expose map for ES module features
+    window._floodtwinMap = map;
+    window.dispatchEvent(new CustomEvent('floodtwin:mapready', { detail: { map } }));
+
     let threeReady = false;
     function boot3(){
       if(threeReady||!window.THREE)return;threeReady=true;
       glMap=map;modelTransform=buildTransform();
       try{map.addLayer(customLayer);}catch(e){console.warn('Layer add:',e);}
       if(!rafId){
-        const loop=()=>{
-          animClock+=0.016;
-          waterMeshes.forEach(m=>{if(m.material?.uniforms?.uTime)m.material.uniforms.uTime.value=animClock;});
-          if(glMap)glMap.triggerRepaint();
+        let lastTs=0;
+        const loop=(ts)=>{
           rafId=requestAnimationFrame(loop);
+          const dt=Math.min((ts-lastTs)/1000,0.05);
+          lastTs=ts;
+
+          if(waterMeshes.length===0)return;
+
+          animClock+=dt;
+          waterMeshes.forEach(m=>{if(m.material?.uniforms?.uTime)m.material.uniforms.uTime.value=animClock;});
+
+          if(glMap)glMap.triggerRepaint();
         };
         rafId=requestAnimationFrame(loop);
       }
     }
     map.on('load', boot3);
-    map.on('style.load', boot3);
+    map.on('style.load', ()=>{ boot3(); });
     setTimeout(()=>{if(!threeReady)boot3();}, 6000);
 
     let syncRaf=null;
@@ -797,6 +1423,7 @@ loadThreeJS(()=>{
       initializeVisualization();
       updateScaleBars();
       syncFullscreenState();
+            initRoadOverlay();
     });
 
     setTimeout(()=>{
@@ -805,6 +1432,7 @@ loadThreeJS(()=>{
         initializeVisualization();
         updateScaleBars();
         syncFullscreenState();
+                initRoadOverlay();
       }
     }, 8000);
   });
