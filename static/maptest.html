@@ -1,0 +1,18 @@
+<!doctype html><meta charset="utf-8">
+<style>html,body{margin:0;height:100%}#m{position:absolute;inset:0}</style>
+<div id="m"></div>
+<script src="https://apis.mappls.com/advancedmaps/api/07ed2c801ad7e2fd64b3fdffd084b0be/map_sdk?v=3.0&layer=vector"></script>
+<script>
+window.addEventListener('load',function(){
+  var t=setInterval(function(){
+    if(window.mappls && mappls.Map){ clearInterval(t);
+      var map=new mappls.Map('m',{center:{lat:28.4595,lng:77.0266},zoom:13,pitch:0,bearing:0,
+        zoomControl:false,attributionControl:false,fullscreenControl:false});
+      window.__m=map;
+      map.on('load',function(){ window.__loaded=true; });
+      map.on('idle',function(){ window.__idle=true; });
+      map.on('error',function(e){ (window.__errs=window.__errs||[]).push(String(e&&e.error||e)); });
+    }
+  },100);
+});
+</script>

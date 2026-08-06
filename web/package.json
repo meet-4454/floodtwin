@@ -1,0 +1,23 @@
+{
+  "name": "floodtwin-web",
+  "private": true,
+  "version": "2.0.0",
+  "type": "module",
+  "description": "FloodTwin — Gurugram flood digital twin. React front-end over the Flask data/API server.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.26.2",
+    "three": "0.128.0",
+    "zustand": "^4.5.5"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "vite": "^5.4.8"
+  }
+}

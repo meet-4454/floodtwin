@@ -17,3 +17,7 @@ htmlcov/
 Thumbs.db
 .vscode/
 .idea/
+
+# Session-signing key and the critical-asset cache: machine state, never committed.
+.session_secret
+drainage/assets_cache.json

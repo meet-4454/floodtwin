@@ -1,0 +1,75 @@
+{
+  "event": "July 2025 reported 133mm / 12h",
+  "spine_verification": {
+    "frames": 15,
+    "nodes": 3234,
+    "links": 3427,
+    "time_monotonic": true,
+    "time_span_s": [
+      3600.0,
+      54000.0
+    ],
+    "final_node_volume_stack_m3": 140338.7,
+    "final_node_volume_report_m3": 140338.7,
+    "final_volume_match": true,
+    "outfall_node_anchors": {
+      "TRUNK-LEG-1": {
+        "capacity_m3ps": 34.055,
+        "node": 421,
+        "outfall_id": "MAIN-LEG-1-DISCHARGE",
+        "tailwater_head_m": 210.703
+      },
+      "TRUNK-LEG-2": {
+        "capacity_m3ps": 119.868,
+        "node": 309,
+        "outfall_id": "MAIN-LEG-2-DISCHARGE",
+        "tailwater_head_m": 210.578
+      },
+      "TRUNK-LEG-3": {
+        "capacity_m3ps": 96.166,
+        "node": 0,
+        "outfall_id": "MAIN-LEG-3-DISCHARGE",
+        "tailwater_head_m": 208.728
+      },
+      "TRUNK-LEG-4": {
+        "capacity_m3ps": 35.986999999999995,
+        "node": 488,
+        "outfall_id": "LEG4-DISCHARGE-LEG3-SECTORS74-75",
+        "tailwater_head_m": 222.558
+      }
+    }
+  },
+  "web_layers": {
+    "hydrograph.json": {
+      "frames": 15,
+      "note": "verified citywide network hydrograph (hourly)"
+    },
+    "manholes_progression.geojson": {
+      "features": 152,
+      "note": "manhole fill onset/peak/backflow"
+    },
+    "backflow_nodes.geojson": {
+      "features": 218,
+      "note": "actionable backflow nodes: onset/persistence/volume"
+    },
+    "pumps.geojson": {
+      "features": 50,
+      "note": "actual MCG pumps: capacity + activation/stop depths"
+    },
+    "inlets_rim.geojson": {
+      "features": 5922,
+      "note": "inlet rim (crown reference) levels + capacity"
+    }
+  },
+  "raw_spine": {
+    "node_volume_15f.npy": [
+      15,
+      3234
+    ],
+    "link_flow_15f.npy": [
+      15,
+      3427
+    ],
+    "geolocation_status": "raw arrays correct but NOT yet bound to geometry (solver node/link order not persisted; needs builder re-run)"
+  }
+}

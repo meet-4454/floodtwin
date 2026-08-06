@@ -1,0 +1,24 @@
+[Unit]
+Description=floodtwin
+After=network.target
+
+[Service]
+Type=simple
+User=production
+WorkingDirectory=/home/production/airesq/floodtwin
+ExecStart=/home/production/miniconda3/envs/floodtwin/bin/gunicorn \
+    --workers 4 \
+    --worker-class gthread \
+    --threads 4 \
+    --timeout 120 \
+    --graceful-timeout 30 \
+    --keep-alive 5 \
+    --bind 0.0.0.0:9120 \
+    --access-logfile - \
+    --error-logfile - \
+    server:app
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

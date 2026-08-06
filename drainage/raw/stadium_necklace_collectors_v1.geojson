@@ -1,0 +1,66 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "athletic_track_necklace",
+        "inlet_support_bonus_per_cell": 6.0,
+        "capture_cap_m3ps": 0.045,
+        "link_capacity_scale": 1.8,
+        "link_capacity_bonus_m3ps": 0.08,
+        "link_capacity_floor_m3ps": 0.24
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [263200.0, 2569050.0],
+          [263335.0, 2569050.0],
+          [263335.0, 2568845.0],
+          [263200.0, 2568845.0],
+          [263200.0, 2569050.0]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "cricket_stadium_necklace",
+        "inlet_support_bonus_per_cell": 6.0,
+        "capture_cap_m3ps": 0.045,
+        "link_capacity_scale": 1.8,
+        "link_capacity_bonus_m3ps": 0.08,
+        "link_capacity_floor_m3ps": 0.24
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [263355.0, 2569045.0],
+          [263530.0, 2569045.0],
+          [263530.0, 2568890.0],
+          [263355.0, 2568890.0],
+          [263355.0, 2569045.0]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "stadium_precinct_collector_spine",
+        "inlet_support_bonus_per_cell": 2.0,
+        "capture_cap_m3ps": 0.03,
+        "link_capacity_scale": 2.2,
+        "link_capacity_bonus_m3ps": 0.12,
+        "link_capacity_floor_m3ps": 0.32
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [263145.0, 2568948.0],
+          [263355.0, 2568948.0],
+          [263355.0, 2569140.0]
+        ]
+      }
+    }
+  ]
+}

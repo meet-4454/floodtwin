@@ -1,0 +1,4 @@
+trunk_id,trunk_name,source_name,source_length,source_discharge,model_role,field_status
+TRUNK-LEG-3,Leg 3 / Badshahpur Drain,Badshapur Drain (Leg 3),24.7706771103,,main downstream carrier; assign capacity and tailwater scenario before coupled runs,"source layer present; confirm cross-section, blockage and tailwater in field"
+TRUNK-LEG-2,Leg 2,Leg 2,16.6905898933,,main downstream carrier; assign capacity and tailwater scenario before coupled runs,"source layer present; confirm cross-section, blockage and tailwater in field"
+TRUNK-LEG-1,Leg 1,Leg 1,13.9275832218,,main downstream carrier; assign capacity and tailwater scenario before coupled runs,"source layer present; confirm cross-section, blockage and tailwater in field"

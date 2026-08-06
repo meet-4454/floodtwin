@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/static/AIRESQ_LOGO.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="FloodTwin — a live digital twin of Gurugram's flooding: coupled 2D surface + 1D storm-drain hydraulics, critical assets, road passability and the buried drainage network in 3D." />
+    <!-- The Mappls SDK, its tiles and its glyphs are three separate hosts, all on
+         the critical path for first paint. Warming the TLS handshakes here saves
+         a full round trip each once the bundle starts requesting them. -->
+    <link rel="preconnect" href="https://apis.mappls.com" crossorigin />
+    <link rel="preconnect" href="https://cdn.mappls.com" crossorigin />
+    <link rel="dns-prefetch" href="https://mt4.mappls.com" />
+    <!-- Same-origin data the console always needs, requested before the bundle
+         has even finished parsing. -->
+    <link rel="preload" as="fetch" href="/api/config" crossorigin />
+    <link rel="preload" as="fetch" href="/sim/manifest.json" crossorigin />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <title>FloodTwin — Gurugram Flood Digital Twin</title>
+    <script type="module" crossorigin src="/assets/index-5T7_pYe7.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/react-C4xND61i.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-Kykfnp0o.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "w": 1024,
+  "h": 1024,
+  "bbox": {
+    "west": 76.93268641534873,
+    "south": 28.328489455095276,
+    "east": 77.17877506736667,
+    "north": 28.543755896400285
+  },
+  "min_elev": 206.77012634277344,
+  "max_elev": 340.07611083984375,
+  "row0_is_north": true,
+  "source": "/home/floodai/FloodAstra/flood_Agent_parallel/flood_model/MCG_Gurugram_DRIISHYA_V2_Production_10x3_NativeInlets_20260506/04_gpu_runs/d04_partly_functional_drains__july2025_133mm_12h_extinflow_drain060_local030_init020_twlow_slopeterrain_or_design_low_0p05pct_localsnap050m_without_pumps_merged/gpu_triangular/gpu_triangular_alpha_outputs.npz"
+}

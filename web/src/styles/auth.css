@@ -1,0 +1,129 @@
+/* The console gate. Uses the landing page's dark "ink" surface, not the
+   console's light chrome — this screen belongs to the product shell, and a
+   full-bleed dark card reads as a door rather than as a broken console. */
+
+.auth-shell {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(900px 520px at 50% -10%, rgba(63, 169, 201, 0.16), transparent 70%),
+    var(--ink);
+  color: var(--ink-fg);
+  overflow-y: auto;
+}
+
+.auth-card {
+  width: min(408px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 30px 30px 26px;
+  border: 1px solid var(--ink-border);
+  border-radius: 16px;
+  background: var(--ink-2);
+  box-shadow: 0 26px 70px rgba(0, 0, 0, 0.45);
+}
+
+.auth-card.is-checking {
+  align-items: center;
+  gap: 16px;
+  padding: 40px 30px;
+  color: var(--ink-fg-dim);
+}
+
+.auth-brand { display: flex; align-items: center; gap: 11px; }
+.auth-brand img { width: 34px; height: 34px; object-fit: contain; }
+.auth-brand-name { font-weight: 700; letter-spacing: 0.01em; }
+.auth-brand-sub { font-size: 12px; color: var(--ink-fg-dim); }
+
+.auth-card h1 {
+  /* The lede under this is gone, so the heading carries the gap to the fields. */
+  margin: 8px 0 2px;
+  font-size: 22px;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+.auth-field { display: flex; flex-direction: column; gap: 6px; }
+.auth-field span {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-fg-dim);
+}
+.auth-field input {
+  padding: 11px 12px;
+  font: inherit;
+  font-size: 14.5px;
+  color: var(--ink-fg);
+  background: var(--ink-3);
+  border: 1px solid var(--ink-border);
+  border-radius: 9px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.auth-field input:focus {
+  border-color: var(--signal);
+  box-shadow: 0 0 0 3px rgba(63, 169, 201, 0.2);
+}
+.auth-field input:disabled { opacity: 0.6; }
+
+.auth-error {
+  padding: 9px 11px;
+  font-size: 13px;
+  color: #ffd7cf;
+  background: rgba(220, 38, 38, 0.16);
+  border: 1px solid rgba(248, 113, 113, 0.4);
+  border-radius: 8px;
+}
+
+.auth-submit {
+  margin-top: 4px;
+  padding: 12px 16px;
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 650;
+  color: #04222c;
+  background: var(--primary-100);
+  border: 0;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: filter 0.15s, opacity 0.15s;
+}
+.auth-submit:hover:not(:disabled) { filter: brightness(1.07); }
+.auth-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.auth-back {
+  align-self: center;
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--ink-fg-dim);
+  text-decoration: none;
+}
+.auth-back:hover { color: var(--ink-fg); }
+
+/* Same two-ring spinner the console boot overlay uses, on the dark surface. */
+.auth-spin { position: relative; width: 34px; height: 34px; }
+.auth-spin span {
+  position: absolute;
+  inset: 0;
+  border: 2px solid transparent;
+  border-top-color: var(--signal);
+  border-radius: 50%;
+  animation: auth-spin 0.9s linear infinite;
+}
+.auth-spin span:last-child {
+  inset: 7px;
+  border-top-color: var(--primary-100);
+  animation-duration: 1.35s;
+  animation-direction: reverse;
+}
+@keyframes auth-spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-spin span { animation: none; }
+}

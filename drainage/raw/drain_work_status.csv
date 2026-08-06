@@ -1,0 +1,183 @@
+line_id,source_id,work_status,size_text,height_m,width_m,model_use
+SWD-WORK-001,229,Work in progress,800,0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-002,91,Work in progress,1200,1.2,0.9,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-003,92,Work in progress,1200,1.2,0.9,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-004,169,Work Completed,[ 1400 ɸ ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-005,17,Work Completed,[ 750 ɸ ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-006,16,Work Completed,[ 1200 ɸ ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-007,165,Work Completed,"[ 2000*1500,C ]",2.0,1.5,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-008,164,Work Completed,"[ 2(N)*3500*2120 ,C]",3.5,2.12,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-009,163,Work Completed,"[ 2(N)*3200*2120 ,C]",3.3,2.12,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-010,40,Work Completed,[ 1200 ɸ ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-011,228,Work in progress,1400,0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-012,168,Work Completed,[ 900 ɸ ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-013,167,Work Completed,[ 1000 ɸ ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-014,227,Work in progress,[800],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-015,15,Work Completed,[ 1400 ɸ ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-016,112,Work Completed,[ 700 ɸ ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-017,170,Work Completed,"[ 1800*1500 ,C]",1.8,1.5,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-018,192,Work Completed,[ 200 ɸ ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-019,166,Work Completed,[ 1100 ɸ ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-020,14,Work Completed,[ 1200 ɸ ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-021,191,Work Completed,"[ 1800*1200 ,C]",1.8,1.2,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-022,162,Work Completed,"[ 2(N)*3200*2120 ,C]",3.0,2.12,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-023,161,Work Completed,"[ 2(N)*3000*2120 ,C]",2.3,2.12,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-024,217,Work Completed,"[4500*2420,C ]",4.5,2.42,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-025,160,Work Completed,[ 1800 ɸ ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-026,159,Work Completed,"[4500*2420,C ]",4.5,2.42,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-027,226,Work Completed,[ 1200 ɸ ],1.0,1.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-028,219,Creeks,[2400*1200],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-029,197,Work Completed,"[ 4000*1800,C ]",4.0,1.8,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-030,37,Work Completed,[ 1000 ɸ ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-031,41,Work Completed,[ 1000 ɸ ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-032,106,Work Completed,[ 1600 ɸ ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-033,266,Work Completed,"[ 2400*1200,C ]",0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-034,107,Work Completed,[ 1600 ɸ ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-035,108,Work Completed,[ 1000 ɸ ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-036,39,Work Completed,[ 1000 ɸ ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-037,268,Work Completed,[ 1000 ɸ ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-038,38,Work Completed,[ 1000 ɸ ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-039,265,Work Completed,[ 1000 ɸ ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-040,273,Work Completed,[ 800 ɸ ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-041,34,Work in progress,1000,0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-042,50,Work Completed,[3040*1820],3.04,1.82,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-043,267,Work Completed,"[ 2700*1500,C ]",0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-044,144,Work Completed,"[ 2(N)*3700*2730 ,C]",3.7,2.73,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-045,232,Work Completed,"[3700*1500,C ]",3.7,1.5,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-046,42,Work Completed,[ 800 ɸ ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-047,47,Work Completed,[1200*200 ],2.4,1.8,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-048,46,Work Completed,[ 1000 ɸ ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-049,109,Work Completed,[ 1200 ɸ ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-050,48,Work Completed,"[ 2400*1800,C ]",2.4,1.8,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-051,220,Creeks,[2400*1200],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-052,105,Work Completed,[ 1000 ɸ ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-053,221,Creeks,[2400*1800],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-054,272,Work Completed,[800 ɸ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-055,239,Work Completed,"[ 900*900 ,C]",1.5,1.2,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-056,222,Creeks,[1500*1500],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-057,236,Work Completed,"[ 900*900 ,C]",0.9,0.9,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-058,6,Work Completed,"[ 900*900 ,C]",0.9,0.9,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-059,45,Work Completed,[ 800 ɸ ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-060,44,Work Completed,[ 1000 ɸ ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-061,111,Work Completed,[ 1200 ɸ ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-062,269,Work Completed,[ 1000 ɸ ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-063,1,Work Completed,"[ 1050*900 ,C]",1.05,0.9,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-064,233,Work Completed,"[ 900*900 ,C]",0.9,0.9,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-065,139,Work Completed,"[ 1500*1200 ,C]",1.5,1.2,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-066,238,Work Completed,"[ 900*900 ,C]",0.9,0.9,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-067,7,Work Completed,"[ 900*900 ,C]",0.9,0.9,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-068,3,Work Completed,"[ 900*900 ,C]",0.9,0.9,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-069,110,Work Completed,[ 1000 ɸ ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-070,147,Work Completed,"[ 900*900 ,C]",0.9,0.9,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-071,9,Work Completed,"[ 900*900 ,C]",0.9,0.9,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-072,190,Work Completed,[ 900 ɸ ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-073,138,Work Completed,"[ 2440*1650,C ]",0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-074,8,Work Completed,"[ 900*900 ,C]",0.9,0.9,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-075,262,Work Completed,"[ 1830*910 ,C]",0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-076,260,Work Completed,"[900*900,C]",3.6,1.8,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-077,140,Work Completed,"[ 3050*1980,C ]",0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-078,11,Work Completed,[ 600 ɸ ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-079,237,Work Completed,"[ 900*900 ,C]",0.9,0.9,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-080,5,Work Completed,"[ 1200*900 ,C]",1.2,0.9,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-081,235,Work Completed,"[ 1200*900 ,C]",1.2,0.9,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-082,10,Work Completed,[ 1600 ɸ ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-083,224,Work Completed,600,0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-084,250,Work Completed,"[ 900*900 ,C]",0.9,0.9,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-085,243,Work Completed,"[ 900*900 ,C]",0.9,0.9,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-086,4,Work Completed,"[ 1200*900 ,C]",1.2,0.9,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-087,240,Work Completed,"[ 1200*900 ,C]",1.2,0.9,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-088,242,Work Completed,"[ 900*900 ,C]",0.9,0.9,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-089,259,Work Completed,"[ 900*900,C ]",0.9,0.9,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-090,245,Work Completed,"[ 2444*1520,C ]",0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-091,13,Work Completed,"[ 900*900 ,C]",0.9,0.9,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-092,12,Work Completed,[ 1200 ɸ ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-093,69,Work in progress,600,0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-094,67,Work in progress,900,0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-095,68,Work in progress,600,0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-096,66,Work in progress,600,0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-097,61,Work in progress,800,0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-098,65,Work in progress,800,0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-099,33,Work in progress,[ 1000 ɸ ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-100,32,Work Completed,"[ 2(N)*3500*2420 ,C]",3.5,2.42,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-101,49,Work Completed,[ 1200 ɸ ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-102,35,Work in progress,1000,0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-103,63,Work in progress,600,0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-104,60,Additional Drain to be constructed of enhanced capi,[4500*2420],1.2,0.9,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-105,36,Work in progress,1000,0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-106,128,Work Completed,"[ 2(N)*4000*2700 ,C]",2.4,2.7,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-107,130,Work Completed,"[4000*3050,C ]",4.0,3.05,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-108,129,Work Completed,[ 2400 ɸ ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-109,143,Work Completed,"[ 3(N)*4200*3300,C ]",4.2,3.3,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-110,82,Work in progress,800,0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-111,131,Work Completed,[ 600 ɸ ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-112,132,Work Completed,"[ 2440*1375,C ]",2.44,1.375,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-113,214,Work Completed,[ 1400 ɸ ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-114,215,Work Completed,"[3650*2430,C ]",3.65,2.43,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-115,202,Work Completed,"[3040*2430,C ]",3.04,2.43,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-116,216,Work Completed,"[5500*2430,C ]",5.5,2.43,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-117,114,Work Completed,"[3040*1820,C ]",0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-118,81,Work in progress,[ 1000 ɸ ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-119,79,Work in progress,[ 2400 ɸ ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-120,80,Work in progress,[ 1200 ɸ ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-121,72,Work Completed,"[8500*2430,C ]",8.5,2.43,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-122,231,Additional Drain to be constructed of enhanced capi,5500*2700,0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-123,121,Work in progress,"[4500*2430,C ]",4.5,2.43,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-124,78,Work in progress,[ 1200 ɸ ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-125,70,Work in progress,"[ 2500*2250,C ]",2.5,2.25,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-126,189,Work in progress,[ 1000 ɸ ],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-127,19,Additional Drain to be constructed of enhanced capi,"[ 12000*2430 ,C]",1.2,2.43,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-128,127,Work in progress,"[ 2500*2250,C ]",2.5,2.25,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-129,135,Work in progress,"[ 1020*1000 ,C]",1.2,1.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-130,58,Work Completed,"[ 3(N)*5500*2700,C ]",5.5,2.7,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-131,84,Work in progress,"[ 1500*1500 ,C]",1.5,1.5,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-132,136,Work in progress,"[ 1750*1500 ,C]",1.75,1.5,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-133,83,Work in progress,"[ 2900*1500,C ]",2.9,1.5,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-134,75,Work Completed,"[ 1200*900 ,C]",1.2,0.9,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-135,18,Work Completed,[1200*900],1.2,2.43,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-136,196,Work in progress,"[ 1200*900 ,C]",0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-137,274,Work Completed,"[1750*1500,C]",1.75,0.5,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-138,155,Work Completed,"[ 3(N)*6700*2730,C ]",6.7,2.73,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-139,31,Work Completed,"[ 1200*900 ,C]",1.2,0.9,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-140,153,Work Completed,"[ 1200*900 ,C]",1.2,0.9,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-141,177,Work Completed,"[ 1200*900 ,C]",1.2,0.9,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-142,102,Work in progress,"[ 1200*900 ,C]",1.2,0.9,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-143,133,Work Completed,"[3650*1375,C ]",3.65,1.375,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-144,88,Work Completed,"[ 2440*1375,C ]",2.44,1.375,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-145,134,Work Completed,"[3050*370,C ]",3.05,0.37,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-146,85,Work Completed,"[ 1800*1200 ,C]",1.8,1.2,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-147,87,Work Completed,"[ 900*600 ,C]",0.9,0.6,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-148,176,Work Completed,"[ 2(N)*4000*1500 ,C]",2.4,1.5,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-149,86,Work Completed,"[ 900*600 ,C]",0.9,0.6,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-150,101,Work in progress,"[ 1200*900 ,C]",1.2,0.9,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-151,175,Work in progress,"[ 1200*1000 ,C]",1.2,1.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-152,142,Work in progress,"[ 1200*1000 ,C]",1.2,1.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-153,156,Work Completed,"[ 1200*900 ,C]",1.2,0.9,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-154,76,Work Completed,"[2(N)*4000*1800,C ]",2.1,1.8,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-155,151,Work Completed,"[ 1200*1500 ,C]",1.2,1.5,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-156,152,Work Completed,"[ 2(N)*4250*800 ,C]",4.25,0.8,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-157,154,Khachha Drain Running,[3050*1375],0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-158,77,Work Completed,"[ 2(N)*5000*1800 ,C]",2.5,1.8,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-159,149,Work Completed,"[3(N)*7000*2100,C ]",0.7,2.1,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-160,100,Work in progress,"[ 1200*900 ,C]",1.2,0.9,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-161,174,Work in progress,"[ 1200*900 ,C]",1.2,0.9,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-162,270,Work Completed,"[2(N)*4500*2100,C ]",4.5,2.1,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-163,96,Work in progress,"[ 2500*1500,C ]",2.5,1.5,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-164,29,Work Completed,"[2(N)*4500*2100,C ]",4.5,2.1,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-165,98,Work in progress,"[ 1500*1500 ,C]",1.5,1.5,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-166,103,Work in progress,"[ 1200*900 ,C]",1.2,0.9,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-167,148,Work in progress,"[ 2(N)*1500 ,C]",2.0,1.5,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-168,173,Work in progress,"[ 1200*1000 ,C]",1.2,1.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-169,271,Work Completed,"[ 3354*1830,C ]",3.354,1.83,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-170,254,Work Completed,"[ 2200*6000,C ]",0.0,0.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-171,251,Work Completed,"[2(N)*3300*2000,C ]",3.3,2.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-172,225,Work Completed,"[ 1200*900 ,C]",1.2,0.9,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-173,104,Work in progress,"[ 1200*900 ,C]",1.2,0.9,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-174,172,Work Completed,"[ 1200*900 ,C]",1.2,0.9,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-175,146,Work in progress,"[ 1200*900 ,C]",1.2,0.9,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-176,194,Work in progress,"[ 1200*900 ,C]",1.2,0.9,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-177,99,Work in progress,"[ 1200*900 ,C]",1.2,0.9,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-178,252,Work Completed,"[ 2(N)*3600*2000 ,C]",3.6,2.0,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-179,145,Work in progress,"[ 2(N)*3900*2000 ,C]",2.0,3.9,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-180,94,Work in progress,"[ 1500*1500 ,C]",1.5,1.5,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-181,93,Work in progress,"[ 1200*900 ,C]",1.2,0.9,capacity scenario evidence; do not assume completed widening without latest field confirmation
+SWD-WORK-182,141,Work in progress,"[ 1200*900 ,C]",1.2,0.9,capacity scenario evidence; do not assume completed widening without latest field confirmation

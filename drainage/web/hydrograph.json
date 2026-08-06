@@ -1,0 +1,153 @@
+{
+ "event": "July 2025 reported 133mm / 12h (15h sim)",
+ "run": "dynamic_pipe_real_legs_15h_reported133_gpu",
+ "snapshot_interval_s": 3600.0,
+ "verified": true,
+ "totals": {
+  "rainfall_input_m3": 39758840.0,
+  "infiltration_loss_m3": 14477713.0,
+  "surface_capture_m3": 5914700.5,
+  "overflow_surcharge_m3": 3332811.25,
+  "outfall_discharge_m3": 56677.8515625,
+  "link_abs_flow_m3": 3326755.0,
+  "storage_capacity_m3_sum": 898305.1875,
+  "link_capacity_m3ps_sum": 40391.00899999999
+ },
+ "frames": [
+  {
+   "t_s": 3600.0,
+   "t_h": 1.0,
+   "node_storage_m3": 4996.7,
+   "nodes_with_water": 2053,
+   "link_throughput_abs_m3ps": 1.92,
+   "link_flow_max_m3ps": 0.117,
+   "links_active": 26
+  },
+  {
+   "t_s": 7200.0,
+   "t_h": 2.0,
+   "node_storage_m3": 8442.3,
+   "nodes_with_water": 2072,
+   "link_throughput_abs_m3ps": 2.09,
+   "link_flow_max_m3ps": 0.132,
+   "links_active": 30
+  },
+  {
+   "t_s": 10800.0,
+   "t_h": 3.0,
+   "node_storage_m3": 11312.3,
+   "nodes_with_water": 2098,
+   "link_throughput_abs_m3ps": 2.99,
+   "link_flow_max_m3ps": 0.259,
+   "links_active": 43
+  },
+  {
+   "t_s": 14400.0,
+   "t_h": 4.0,
+   "node_storage_m3": 14039.2,
+   "nodes_with_water": 2118,
+   "link_throughput_abs_m3ps": 2.84,
+   "link_flow_max_m3ps": 0.184,
+   "links_active": 48
+  },
+  {
+   "t_s": 18000.0,
+   "t_h": 5.0,
+   "node_storage_m3": 16550.2,
+   "nodes_with_water": 2102,
+   "link_throughput_abs_m3ps": 2.71,
+   "link_flow_max_m3ps": 0.154,
+   "links_active": 51
+  },
+  {
+   "t_s": 21600.0,
+   "t_h": 6.0,
+   "node_storage_m3": 18630.1,
+   "nodes_with_water": 2103,
+   "link_throughput_abs_m3ps": 2.78,
+   "link_flow_max_m3ps": 0.182,
+   "links_active": 56
+  },
+  {
+   "t_s": 25200.0,
+   "t_h": 7.0,
+   "node_storage_m3": 20588.3,
+   "nodes_with_water": 2127,
+   "link_throughput_abs_m3ps": 4.14,
+   "link_flow_max_m3ps": 0.215,
+   "links_active": 71
+  },
+  {
+   "t_s": 28800.0,
+   "t_h": 8.0,
+   "node_storage_m3": 82512.6,
+   "nodes_with_water": 2451,
+   "link_throughput_abs_m3ps": 137.69,
+   "link_flow_max_m3ps": 4.917,
+   "links_active": 1276
+  },
+  {
+   "t_s": 32400.0,
+   "t_h": 9.0,
+   "node_storage_m3": 170105.3,
+   "nodes_with_water": 2572,
+   "link_throughput_abs_m3ps": 396.14,
+   "link_flow_max_m3ps": 12.711,
+   "links_active": 1542
+  },
+  {
+   "t_s": 36000.0,
+   "t_h": 10.0,
+   "node_storage_m3": 160573.8,
+   "nodes_with_water": 2387,
+   "link_throughput_abs_m3ps": 112.03,
+   "link_flow_max_m3ps": 2.499,
+   "links_active": 762
+  },
+  {
+   "t_s": 39600.0,
+   "t_h": 11.0,
+   "node_storage_m3": 156494.5,
+   "nodes_with_water": 2992,
+   "link_throughput_abs_m3ps": 82.36,
+   "link_flow_max_m3ps": 2.158,
+   "links_active": 502
+  },
+  {
+   "t_s": 43200.0,
+   "t_h": 12.0,
+   "node_storage_m3": 152801.1,
+   "nodes_with_water": 2347,
+   "link_throughput_abs_m3ps": 76.3,
+   "link_flow_max_m3ps": 2.015,
+   "links_active": 630
+  },
+  {
+   "t_s": 46800.0,
+   "t_h": 13.0,
+   "node_storage_m3": 147134.4,
+   "nodes_with_water": 2100,
+   "link_throughput_abs_m3ps": 54.14,
+   "link_flow_max_m3ps": 1.383,
+   "links_active": 465
+  },
+  {
+   "t_s": 50400.0,
+   "t_h": 14.0,
+   "node_storage_m3": 142127.7,
+   "nodes_with_water": 2068,
+   "link_throughput_abs_m3ps": 32.02,
+   "link_flow_max_m3ps": 1.13,
+   "links_active": 391
+  },
+  {
+   "t_s": 54000.0,
+   "t_h": 15.0,
+   "node_storage_m3": 140338.7,
+   "nodes_with_water": 2048,
+   "link_throughput_abs_m3ps": 26.22,
+   "link_flow_max_m3ps": 0.943,
+   "links_active": 366
+  }
+ ]
+}

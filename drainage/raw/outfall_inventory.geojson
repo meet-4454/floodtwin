@@ -1,0 +1,10 @@
+{
+"type": "FeatureCollection",
+"name": "outfall_inventory",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:EPSG::32643" } },
+"features": [
+{ "type": "Feature", "properties": { "discharge_id": "MAIN-LEG-3-DISCHARGE", "trunk_id": "TRUNK-LEG-3", "trunk_name": "Leg 3 / Badshahpur Drain", "discharge_class": "main-leg discharge terminal", "discharge_rule": "western terminal of main drain leg", "city_side": "western side", "model_use": "model discharge boundary; local drains route to main leg before discharge", "field_status": "confirm tailwater, cross-section and blockage before design use", "terrain_elev_m": 210.403, "longitude": 76.946183, "latitude": 28.505559, "x_utm43n": 690473.23, "y_utm43n": 3154752.06 }, "geometry": { "type": "Point", "coordinates": [ 690473.231172978295945, 3154752.062228405848145 ] } },
+{ "type": "Feature", "properties": { "discharge_id": "MAIN-LEG-2-DISCHARGE", "trunk_id": "TRUNK-LEG-2", "trunk_name": "Leg 2", "discharge_class": "main-leg discharge terminal", "discharge_rule": "western terminal of main drain leg", "city_side": "western side", "model_use": "model discharge boundary; local drains route to main leg before discharge", "field_status": "confirm tailwater, cross-section and blockage before design use", "terrain_elev_m": 212.253, "longitude": 76.965178, "latitude": 28.512943, "x_utm43n": 692319.24, "y_utm43n": 3155600.6 }, "geometry": { "type": "Point", "coordinates": [ 692319.239393570460379, 3155600.603090075775981 ] } },
+{ "type": "Feature", "properties": { "discharge_id": "MAIN-LEG-1-DISCHARGE", "trunk_id": "TRUNK-LEG-1", "trunk_name": "Leg 1", "discharge_class": "main-leg discharge terminal", "discharge_rule": "western terminal of main drain leg", "city_side": "western side", "model_use": "model discharge boundary; local drains route to main leg before discharge", "field_status": "confirm tailwater, cross-section and blockage before design use", "terrain_elev_m": 212.378, "longitude": 77.000437, "latitude": 28.531694, "x_utm43n": 695735.91, "y_utm43n": 3157735.65 }, "geometry": { "type": "Point", "coordinates": [ 695735.909440714865923, 3157735.647252323105931 ] } }
+]
+}

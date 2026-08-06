@@ -1,0 +1,81 @@
+/* Design tokens shared by the landing page and the console.
+   The console keeps FloodTwin's existing light, instrument-panel identity; the
+   landing page uses the darker AIResQ "ink" surface so the product page and the
+   tool read as one family without the map being buried in a dark chrome. */
+:root {
+  /* brand */
+  --primary-100: #6BC3D2;
+  --primary-200: #5CADBA;
+  --primary-400: #5298A9;
+  --primary-600: #49879A;
+  --secondary-100: #B1DEE2;
+  --accent-700: #20545B;
+  --accent-800: #264351;
+  --accent-900: #25394F;
+  --accent-blue-700: #155A7C;
+
+  /* dark surface (landing) */
+  --ink: #0b1420;
+  --ink-2: #0f1c28;
+  --ink-3: #142330;
+  --signal: #3fa9c9;
+  --signal-dim: #2a7e99;
+  --flood: #f2a93b;
+  --good: #4fb477;
+  --ink-fg: #eef2f4;
+  --ink-fg-dim: #9fb1bd;
+  --ink-border: rgba(91, 114, 133, 0.28);
+
+  /* light surface (console) */
+  --bg-default: #ffffff;
+  --bg-muted: #F4FAFB;
+  --bg-app: #EAF4F6;
+  --border-card: #E1EEF1;
+  --text-primary: #25394F;
+  --text-secondary: #4F4F51;
+  --text-muted: #7A8A9B;
+  --text-inverse: #ffffff;
+
+  --shadow-sm: 0 1px 2px rgba(37, 57, 79, .06);
+  --shadow-md: 0 4px 12px rgba(37, 57, 79, .08);
+  --shadow-lg: 0 12px 28px rgba(37, 57, 79, .14);
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 22px;
+
+  --header-h: 60px;
+  --sidebar-w: 348px;
+  --transition: 240ms cubic-bezier(.2, .8, .2, 1);
+
+  --ft-safe: #10b981;
+  --ft-warn: #f59e0b;
+  --ft-danger: #ef4444;
+
+  --font-display: 'Sora', 'Inter', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body, #root { height: 100%; }
+body {
+  font-family: var(--font-body);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; background: none; border: none; }
+a { color: inherit; text-decoration: none; }
+
+/* Map popups are injected by MapLibre outside the React tree. */
+.ft-pop { font-family: var(--font-body); font-size: 12px; line-height: 1.5; min-width: 180px; }
+.ft-pop b { font-family: var(--font-display); font-size: 12.5px; }
+.ft-pop-name { font-weight: 600; margin: 2px 0; color: var(--text-primary); }
+.ft-pop-src { margin-top: 6px; font-size: 10px; letter-spacing: .3px; text-transform: uppercase; color: var(--text-muted); }
+.ft-pop-risk { margin-top: 6px; padding: 4px 7px; border-radius: 6px; font-weight: 600; font-size: 11.5px; }
+.ft-risk-hi { background: #fee2e2; color: #991b1b; }
+.ft-risk-mid { background: #fef3c7; color: #92400e; }
+.ft-risk-ok { background: #dcfce7; color: #166534; }

@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3D Flood Twin - AIRESQ</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+
+<button id="hamburgerBtn" class="open"><span></span><span></span><span></span></button>
+
+<div id="loadingOverlay">
+  <div class="loader">
+    <div class="spinner">
+      <div class="spinner-ripple"></div>
+      <div class="spinner-ripple"></div>
+    </div>
+    <h2>Initializing Flood Visualization…</h2>
+    <p id="loadingProgress">Loading map SDK…</p>
+  </div>
+</div>
+
+<div class="app-shell">
+  <header class="app-header">
+    <div class="brand-block">
+      <button class="brand-logo-wrap" id="brandSidebarToggle" type="button" aria-label="Toggle sidebar" title="Toggle controls">
+        <img class="brand-logo" src="{{ url_for('static', filename='AIRESQ_LOGO.png') }}" alt="AIRESQ logo">
+      </button>
+      <div class="brand-copy">
+        <div class="brand-title-row">
+          <h1 class="app-title">FloodTwin</h1>
+        </div>
+        <p class="app-subtitle">AIResQ ClimSols Flood Intelligence Console</p>
+      </div>
+    </div>
+
+    <div class="header-spacer"></div>
+  </header>
+
+  <div class="app-body">
+    <!-- SIDEBAR -->
+    <div id="sidebar">
+      <div id="searchWrap">
+        <div id="searchRow">
+          <span id="srchIcon">🔍</span>
+          <input id="searchInput" type="text" placeholder="Search location… (or click map)" autocomplete="off" spellcheck="false">
+          <ul id="searchSuggestions"></ul>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-header-left"><span class="panel-icon">🛰️</span><span class="panel-title">Data Source</span></div>
+          <span class="panel-badge" id="datasetBadge">Event · 09 Jul 2025</span>
+        </div>
+        <div id="datasetSwitch" class="dataset-switch">
+          <button data-dataset="event" class="active">09 Jul 2025 Event</button>
+          <button data-dataset="live">Live Forecast</button>
+        </div>
+        <div id="runStatus" class="run-status" hidden>
+          <div class="run-status-row">
+            <span class="run-dot" id="runDot"></span>
+            <span id="runState">Checking run…</span>
+          </div>
+          <div class="run-status-meta" id="runWindow">—</div>
+          <div class="run-status-meta" id="runNext">—</div>
+        </div>
+        <div class="dl-hint">Both run on the same drainage network and terrain — switching swaps only the flood dynamics. The live forecast is the MCG partner's coupled 2D+1D run, refreshed daily at 10-minute steps.</div>
+      </div>
+      <div class="panel-divider"></div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-header-left"><span class="panel-icon">🕐</span><span class="panel-title">Time Control</span></div>
+        </div>
+        <div id="timeBox">
+          <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:4px;">
+            <div id="timeBoxLabel">Current Time</div>
+            <span id="liveIndicator"><span id="liveDot"></span><span id="liveLabel">Live</span></span>
+          </div>
+          <div id="timeDisplay">09-July-2025</div>
+        <div id="timeSub"></div>
+        </div>
+        <input type="range" id="timeSlider" min="0" max="12" value="0" step="1">
+        <div id="transportBtns">
+          <button class="tbtn" id="resetBtn">↺</button>
+          <button class="tbtn" id="prevBtn">⏮</button>
+          <button class="tbtn" id="playBtn">▶</button>
+          <button class="tbtn" id="nextBtn">⏭</button>
+          <button class="tbtn" id="liveNowBtn" title="Jump to the frame nearest the current time" hidden>⦿</button>
+        </div>
+      </div>
+      <div class="panel-divider"></div>
+
+      <div class="panel">
+        <div class="panel-header"><div class="panel-header-left"><span class="panel-icon">🔄</span><span class="panel-title">Playback Speed</span></div></div>
+        <div id="speedPills">
+          <div class="speed-pill" data-speed="1000">0.5×</div>
+          <div class="speed-pill active" data-speed="500">Normal</div>
+          <div class="speed-pill" data-speed="250">2×</div>
+          <div class="speed-pill" data-speed="125">4×</div>
+        </div>
+      </div>
+      <div class="panel-divider"></div>
+
+      <div class="panel">
+        <div class="panel-header"><div class="panel-header-left"><span class="panel-icon">☰</span><span class="panel-title">Layer Opacity</span></div></div>
+        <div class="opacity-row">
+          <div class="opacity-dot" style="background:#5298A9"></div>
+          <span class="opacity-label">Flood Layer</span>
+          <span class="opacity-value" id="floodOpVal">70%</span>
+        </div>
+        <input type="range" class="opacity-slider" id="floodOpSlider" min="0" max="100" value="70">
+      </div>
+      <div class="panel-divider"></div>
+
+      <div class="panel assets-panel">
+        <div class="panel-header">
+          <div class="panel-header-left"><span class="panel-icon">📍</span><span class="panel-title">Critical Assets</span></div>
+          <span class="panel-badge" id="assetBadge">Loading…</span>
+        </div>
+        <div id="assetGrid">
+          <div class="asset-skel"></div><div class="asset-skel"></div><div class="asset-skel"></div>
+          <div class="asset-skel"></div><div class="asset-skel"></div><div class="asset-skel"></div>
+        </div>
+        <div id="assetList"></div>
+      </div>
+      <div class="panel-divider"></div>
+
+      <div class="panel roads-panel">
+        <div class="panel-header">
+          <div class="panel-header-left"><span class="panel-icon">🛣️</span><span class="panel-title">Road Status</span></div>
+          <span class="panel-badge" id="roadBadge">—</span>
+        </div>
+        <button class="road-toggle-btn" id="roadOverlayToggle">Enable Road Overlay</button>
+        <div id="roadList" class="road-list">
+          <p class="road-empty">Enable overlay to analyse road passability</p>
+        </div>
+      </div>
+      <div class="panel-divider"></div>
+
+      <div class="panel drainage-panel">
+        <div class="panel-header">
+          <div class="panel-header-left"><span class="panel-icon">🚰</span><span class="panel-title">Drainage Network</span></div>
+          <span class="panel-badge" id="drainBadge">3D · Gurugram</span>
+        </div>
+        <button class="road-toggle-btn" id="drainToggle">Show Drainage (3D)</button>
+        <button class="road-toggle-btn" id="engToggle" hidden>Switch to capacity view</button>
+        <div id="drainBookmarks" class="drain-bookmarks" hidden>
+          <button data-bk="rain">① Rain</button><button data-bk="load">② Loading</button><button data-bk="peak">③ Peak</button><button data-bk="reced">④ Recession</button>
+        </div>
+        <div id="drainLegend" class="drain-legend" hidden>
+          <div id="drainPhase" class="drain-phase">Scrub the timeline to follow the event</div>
+          <div id="drainKpis" class="drain-kpis"></div>
+          <div class="dl-hint">Water fills each pipe from the invert up, taking the bore's shape — a full round pipe means it is running at capacity. Tap any row to show or hide that layer.</div>
+          <div class="dl-group">Underground network<button id="drainLayersAll" class="dl-allbtn" type="button">All</button></div>
+          <div id="drainLayers" class="drain-layers"></div>
+          <div class="dl-group">Capacity view (toggle)</div>
+          <div class="dl-row"><span class="dl-mk dl-bar" style="background:linear-gradient(90deg,#218c47,#ebb833,#e0530f,#dc2919)"></span>Pipe = demand ÷ capacity (green &lt;50% → red ≥90%)</div>
+        </div>
+      </div>
+      <div class="panel-divider"></div>
+
+      <div class="panel drainage-panel">
+        <div class="panel-header">
+          <div class="panel-header-left"><span class="panel-icon">🕳️</span><span class="panel-title">Drainage Performance</span></div>
+          <span class="panel-badge" id="perfBadge">manholes · backflow · pumps</span>
+        </div>
+        <button class="road-toggle-btn" id="perfToggle">Show Drainage Performance</button>
+        <div id="perfBody" hidden>
+          <div id="perfReadout" class="perf-readout">Scrub the timeline to watch the network respond</div>
+          <div class="drain-legend">
+            <div class="dl-hint">Manhole shafts rise from the buried pipe to the rim at street level; water climbs inside, then spills onto the street when it reaches the rim.</div>
+            <div class="dl-row"><span class="dl-dot" style="background:#f2c14e"></span>Water rising in shaft — low backflow</div>
+            <div class="dl-row"><span class="dl-dot" style="background:#ff3b30;border-radius:50%"></span>Overflow puddle — water hits the street</div>
+            <div class="dl-row"><span class="dl-dot" style="background:#7bcfee;box-shadow:0 0 0 1px #26506e"></span>Inlet / gully (zoom in to see)</div>
+            <div class="dl-row"><span class="dl-dot" style="background:#12b39a;box-shadow:0 0 0 1px #08352c"></span>Outfall (network discharge)</div>
+            <div class="dl-row"><span class="dl-dot" style="background:#ff3b30"></span>Backflow node (click for detail)</div>
+            <div class="dl-row"><span class="dl-dot" style="background:#34c759"></span>Pump idle&nbsp;·&nbsp;<span class="dl-dot" style="background:#1d8fff"></span>&nbsp;running</div>
+          </div>
+        </div>
+      </div>
+      <div class="panel-divider"></div>
+
+    </div>
+
+    <main class="viewport-shell">
+      <div id="map"></div>
+      <div id="chunkLoadingIndicator"><div class="chunk-dots"><span></span><span></span><span></span></div>Loading timestep data…</div>
+
+      <!-- FLOOD DEPTH POPUP -->
+      <div id="floodPopup">
+        <div class="fp-card">
+          <button class="fp-close" id="fpClose">✕</button>
+          <div class="fp-head"><span>💧</span><span class="fp-head-title">Flood Depth</span></div>
+          <div class="fp-depth"><span class="fp-depth-val" id="fpVal">—</span><span class="fp-depth-unit">metres</span></div>
+          <div class="fp-badge" id="fpBadge"><span class="dot" id="fpDot"></span><span id="fpLabel">—</span></div>
+          <div class="fp-divider"></div>
+          <div class="fp-meta"><b>Time:</b> <span id="fpTime">—</span><br><b>Location:</b> <span id="fpCoords">—</span></div>
+        </div>
+      </div>
+
+      <!-- ROAD STATUS POPUP -->
+      <div id="roadPopup">
+        <div class="rp-card">
+          <button class="rp-close" id="rpClose">✕</button>
+          <div class="rp-head"><span>🛣️</span><span class="rp-head-title">Road Status</span></div>
+          <div class="rp-name" id="rpName">—</div>
+          <div class="rp-depth-row"><span class="rp-val" id="rpVal">—</span><span class="rp-unit">m depth</span></div>
+          <div class="rp-status" id="rpStatus">—</div>
+        </div>
+      </div>
+
+      <!-- LEGEND (doubles as a depth-band filter) -->
+      <div id="legend">
+        <div class="legend-header"><span>💧</span><span class="legend-title">Flood Depth</span><button id="legendReset" class="legend-reset" type="button" title="Show all depths" hidden>Reset</button></div>
+        <div id="legendRamp" class="legend-ramp"></div>
+        <div id="legendMax" class="legend-max">—</div>
+        <button class="legend-row" type="button" data-band="low" aria-pressed="true"><div class="legend-swatch" style="background:linear-gradient(135deg,#B3EBF7,#7BCFEE)"></div><span class="legend-range">&lt;0.2m</span><span class="legend-severity">Low</span></button>
+        <button class="legend-row" type="button" data-band="mod" aria-pressed="true"><div class="legend-swatch" style="background:linear-gradient(135deg,#7BCFEE,#4B93C8)"></div><span class="legend-range">0.2–0.6m</span><span class="legend-severity">Mod</span></button>
+        <button class="legend-row" type="button" data-band="high" aria-pressed="true"><div class="legend-swatch" style="background:linear-gradient(135deg,#FA8F26,#DC2626)"></div><span class="legend-range">0.6–1.2m</span><span class="legend-severity">High</span></button>
+        <button class="legend-row" type="button" data-band="sev" aria-pressed="true"><div class="legend-swatch" style="background:linear-gradient(135deg,#DC2626,#7A0B0B)"></div><span class="legend-range">&gt;1.2m</span><span class="legend-severity">Severe</span></button>
+        <div class="legend-hint">Tap a band to filter the flood layer</div>
+      </div>
+
+      <!-- FLOOD HOTSPOTS (related spots for the active depth filter) -->
+      <div id="floodSpots" class="hidden">
+        <div class="fs-header">
+          <span>📍</span><span class="fs-title">Flood Hotspots</span>
+          <span class="fs-badge" id="fsBadge">—</span>
+        </div>
+        <div class="fs-list" id="fsList"></div>
+        <div class="fs-hint">Spots in view for the selected depth bands</div>
+      </div>
+
+      <div id="mapControls">
+        <button class="map-control-btn" id="jumpDeepestBtn" title="Jump to deepest flooding (critical zone)">🎯</button>
+        <button class="map-control-btn active" id="toggle3DBtn">🏔️</button>
+        <button class="map-control-btn" id="zoomInBtn">+</button>
+        <button class="map-control-btn" id="zoomOutBtn">−</button>
+        <button class="map-control-btn" id="view3DCityBtn" title="View 3D City (LULC)">🏙️</button>
+        <button class="map-control-btn" id="fullscreenBtn" title="Toggle fullscreen">⛶</button>
+      </div>
+
+      <div class="map-scale map-scale-right" id="mapScaleRight" aria-hidden="true">
+        <div class="map-scale-bar"></div>
+        <span class="map-scale-label">100 m</span>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script>
+  window.FLOODTWIN_CONFIG = {
+    mapplsApiKey: {{ mappls_api_key | tojson }},
+    dataUrls: {
+      polygonIndex: {{ url_for('polygon_index') | tojson }},
+      coordinates:  {{ url_for('coordinates')   | tojson }},
+      chunksBase:   {{ url_for('chunks', filename='') | tojson }}
+    }
+  };
+</script>
+<script src="{{ url_for('static', filename='js/drainage_viz.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
+</body>
+</html>

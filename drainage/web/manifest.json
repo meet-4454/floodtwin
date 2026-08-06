@@ -1,0 +1,42 @@
+{
+  "source_crs": "EPSG:32643 (UTM43N)",
+  "web_crs": "EPSG:4326 (WGS84 lng/lat)",
+  "depth_rule": "crown=-(0.75 cover+0.30 slab); invert=crown-sec_h_m (m below local ground)",
+  "layers": {
+    "drain_network.geojson": {
+      "features": 2913,
+      "geom": "LineString",
+      "note": "full city storm network w/ cross-sections"
+    },
+    "trunk_legs.geojson": {
+      "features": 3,
+      "geom": "LineString",
+      "note": "3 main trunk drains (Badshahpur etc.)"
+    },
+    "drain_work_status.geojson": {
+      "features": 182,
+      "geom": "LineString",
+      "note": "182 desilting work-status segments"
+    },
+    "outfalls.geojson": {
+      "features": 67,
+      "geom": "Point",
+      "note": "probable outfalls"
+    },
+    "discharge_points.geojson": {
+      "features": 3,
+      "geom": "Point",
+      "note": "main-leg discharge points"
+    },
+    "storm_network.geojson": {
+      "features": 6213,
+      "geom": "LineString",
+      "note": "June-5 actual storm network, 1000 km (build_drainage_web_v2.py)"
+    },
+    "sewer_network.geojson": {
+      "features": 34679,
+      "geom": "LineString",
+      "note": "June-5 actual sewer network, 1980 km (build_drainage_web_v2.py)"
+    }
+  }
+}
