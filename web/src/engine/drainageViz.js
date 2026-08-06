@@ -635,6 +635,9 @@ export function createDrainageViz(engine, geom, { vexag = DEFAULT_VEXAG, waterRe
   const up = new THREE.Vector3(0, 1, 0);
   const P = new THREE.Vector3(), Pn = new THREE.Vector3(), T = new THREE.Vector3();
   const Nrm = new THREE.Vector3(), Bi = new THREE.Vector3(), prevT = new THREE.Vector3(), tmp = new THREE.Vector3();
+  // Scratch vectors for the ring loop. Every allocation in here happens ~193,000
+  // times, and the GC pressure from that was a measurable slice of the build.
+  const scratch = new THREE.Vector3(), axisX = new THREE.Vector3(1, 0, 0);
   let vo = 0, io = 0, vi = 0, rv = 0, rq = 0;
   const tierCount = [0, 0, 0];
   const classCount = [0, 0, 0];
@@ -673,14 +676,14 @@ export function createDrainageViz(engine, geom, { vexag = DEFAULT_VEXAG, waterRe
       // Parallel-transport frame: rotate the previous ring normal by the tangent
       // change instead of rebuilding a basis, or the tube twists at every node.
       if (!haveFrame) {
-        Nrm.crossVectors(Math.abs(T.y) > 0.9 ? new THREE.Vector3(1, 0, 0) : up, T).normalize();
+        Nrm.crossVectors(Math.abs(T.y) > 0.9 ? axisX : up, T).normalize();
         Bi.crossVectors(T, Nrm).normalize();
         haveFrame = true;
       } else {
         tmp.crossVectors(prevT, T);
         const sn = tmp.length(), cth = prevT.dot(T);
         if (sn > 1e-6) { tmp.multiplyScalar(1 / sn); Nrm.applyAxisAngle(tmp, Math.atan2(sn, cth)); }
-        Nrm.sub(T.clone().multiplyScalar(Nrm.dot(T))).normalize();
+        Nrm.sub(scratch.copy(T).multiplyScalar(Nrm.dot(T))).normalize();
         Bi.crossVectors(T, Nrm).normalize();
       }
       prevT.copy(T);

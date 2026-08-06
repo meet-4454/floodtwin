@@ -112,7 +112,34 @@ export async function createEngine({ container, mapplsKey, onStatus }) {
   await loadMapplsSDK(mapplsKey, onStatus);
   onStatus?.('Initialising map…');
 
-  const map = new window.mappls.Map(container, {
+  /* ── MOUNTING TWICE MUST BE SAFE ──────────────────────────────────────────
+   * The console can mount more than once in a single page session: React's
+   * StrictMode deliberately mounts → unmounts → remounts every effect in dev,
+   * and navigating Overview → console does the same in any build. Both the
+   * Mappls wrapper and MapLibre underneath it keep per-container state and tear
+   * the previous instance down when a new one is constructed for the same
+   * element — but we have already removed that map ourselves in engine.destroy,
+   * so its internals are gone and the constructor throws
+   * "Cannot read properties of undefined (reading 'destroy')" from inside the
+   * library. That surfaced as a bare "Could not start" screen with no way back
+   * except a manual reload.
+   *
+   * So: retire any previous engine, hand the SDK a genuinely empty container,
+   * and if construction still throws, clear and retry once before giving up
+   * with a message that says what to do. */
+  const el = typeof container === 'string' ? document.getElementById(container) : container;
+  if (!el) throw new Error(`Map container "${container}" is not in the document.`);
+
+  if (window.__ftEngine && window.__ftEngine !== null) {
+    try { window.__ftEngine.destroy?.(); } catch { /* already half-gone */ }
+    window.__ftEngine = null;
+    window.__map = null;
+  }
+  // Anything the removed map left behind — canvases, control containers — would
+  // be adopted by the next instance. Start from bare.
+  el.replaceChildren();
+
+  const mapOptions = {
     center: { lat: REF_LAT, lng: REF_LNG },
     zoom: 12.6, pitch: 45, bearing: -12,
     zoomControl: false, attributionControl: false, fullscreenControl: false,
@@ -121,7 +148,19 @@ export async function createEngine({ container, mapplsKey, onStatus }) {
     // context the browser composites an empty canvas — the basemap loads, draws,
     // reports healthy, and never appears.
     preserveDrawingBuffer: true,
-  });
+  };
+  let map;
+  try {
+    map = new window.mappls.Map(container, mapOptions);
+  } catch (err) {
+    console.warn('[engine] map construction failed, clearing and retrying once:', err);
+    el.replaceChildren();
+    try {
+      map = new window.mappls.Map(container, mapOptions);
+    } catch (err2) {
+      throw new Error(`The map could not be initialised (${err2.message || err2}). Reload the page.`);
+    }
+  }
 
   const modelTransform = buildTransform();
   const toLocal = (lng, lat) => {
@@ -258,11 +297,20 @@ export async function createEngine({ container, mapplsKey, onStatus }) {
     }
   }
 
+  // Idempotent on purpose: React can call the cleanup more than once, and
+  // map.remove() on an already-removed MapLibre map reads `this.style.destroy`
+  // off an undefined style. Every step is individually guarded so one failure
+  // cannot strand the rest of the teardown.
+  let destroyed = false;
   engine.destroy = () => {
-    cancelAnimationFrame(raf);
-    document.removeEventListener('visibilitychange', onVis);
-    engine.tickers.clear();
+    if (destroyed) return;
+    destroyed = true;
+    try { cancelAnimationFrame(raf); } catch { /* never started */ }
+    try { document.removeEventListener('visibilitychange', onVis); } catch { /* noop */ }
+    try { engine.tickers.clear(); engine.stepHandlers.clear(); } catch { /* noop */ }
+    try { engine.renderer?.dispose?.(); } catch { /* context already lost */ }
     try { map.remove(); } catch { /* already gone */ }
+    if (window.__ftEngine === engine) { window.__ftEngine = null; window.__map = null; }
   };
 
   // Debug handles for headless verification.

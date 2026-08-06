@@ -146,25 +146,63 @@ export async function startTwin({ container }) {
       });
     },
 
+    /* The heaviest mount in the app, so nothing in it waits for anything it does
+     * not actually depend on.
+     *
+     * It used to run as four serial round-trip groups: fetch 2.4 MB of geometry
+     * → fetch the two code chunks → fetch the inlet/outfall/pump inventories →
+     * fetch the hour. Only the FIRST of those is a real dependency of the 3-D
+     * build; the rest were serialised purely by the order the code was written
+     * in, which on a municipal connection is three extra latency stalls before a
+     * single pipe appears.
+     *
+     * Now every request starts at once and the build consumes them as they land.
+     * The point-asset inventories are not awaited at all — they paint themselves
+     * in when ready (see drainageAssets.js), because a pump marker is not a
+     * reason to hold back 139,798 conduits. */
     drainage: async () => {
       S().setStatus('Loading drainage network…');
-      const geom = await sim.loadGeometry();
-      const [{ createDrainageViz }, { createDrainageAssets }] = await Promise.all([
-        import('./drainageViz.js'), import('./drainageAssets.js'),
-      ]);
+      const geomP = sim.loadGeometry();
+      const vizP = import('./drainageViz.js');
+      const assetsModP = import('./drainageAssets.js');
+      const hourP = sim.fetchHour(S().step).catch(() => null);
+
+      const [geom, { createDrainageViz }] = await Promise.all([geomP, vizP]);
+
+      // Let the status line repaint before the synchronous build takes the main
+      // thread for ~0.5 s — otherwise the user stares at the previous frame and
+      // assumes the click did nothing.
+      S().setStatus('Building 139,798 conduits…');
+      await new Promise((r) => requestAnimationFrame(r));
+
       // No maxDepth: the underground levels itself against the network's own
       // median node depth, not against the surface flood's drifting colour scale.
       const viz = createDrainageViz(engine, geom);
-      const assets = await createDrainageAssets(engine, { depthAt: (a, b) => sim.depthAt(a, b) });
-      handles.drainAssets = assets;
-      S().setDrainStats({
-        links: viz.links, chains: viz.chains, tiers: viz.tierCount,
-        classes: viz.classCount, ...assets.stats,
-      });
       viz.setZoom(engine.map.getZoom());
-      const rec = await sim.fetchHour(S().step);
+
+      // Pipes are live from here. Everything below refines what is on screen.
+      const rec = await hourP;
       if (rec) {
         viz.updateHour(rec, geom.nodeMax, sim.state.man.depth_scale, sim.state.man.flow_scale);
+      }
+
+      const { createDrainageAssets } = await assetsModP;
+      const assets = createDrainageAssets(engine, {
+        depthAt: (a, b) => sim.depthAt(a, b),
+        onReady: (h) => {
+          S().setDrainStats({
+            links: viz.links, chains: viz.chains, tiers: viz.tierCount,
+            classes: viz.classCount, ...h.stats,
+          });
+          const r = sim.state.hourCache.get(S().step);
+          if (r) { h.updateFrame(r, geom); S().setSurcharged(h.surchargedCount); }
+        },
+      });
+      handles.drainAssets = assets;
+      S().setDrainStats({
+        links: viz.links, chains: viz.chains, tiers: viz.tierCount, classes: viz.classCount,
+      });
+      if (rec) {
         assets.updateFrame(rec, geom);
         S().setSurcharged(assets.surchargedCount);
       }
@@ -398,6 +436,7 @@ export async function startTwin({ container }) {
   // frame is bound or what the derived read-outs think).
   window.__ftTwin = { engine, sim, handles, applyStep, refreshDerived, store: useTwin };
 
+  let destroyed = false;
   return {
     engine, sim, handles,
     jumpToDeepest() {
@@ -410,12 +449,20 @@ export async function startTwin({ container }) {
       engine.map.flyTo({ center: [lng, lat], zoom, duration: 1200 });
     },
     depthAt: (lng, lat) => sim.depthAt(lng, lat),
+    // Every step guarded and the whole thing idempotent: teardown runs on an
+    // unmount that may be racing a half-finished feature mount, and one feature
+    // failing to dispose must never leave the map itself alive — that is what
+    // strands a dead canvas for the next mount to trip over.
     destroy() {
-      unsub();
-      engine.map.off('zoom', onZoom);
-      engine.map.off('moveend', refreshDerived);
-      for (const h of Object.values(handles)) h?.dispose?.();
-      engine.destroy();
+      if (destroyed) return;
+      destroyed = true;
+      try { unsub(); } catch { /* never subscribed */ }
+      try { engine.map.off('zoom', onZoom); } catch { /* map already gone */ }
+      try { engine.map.off('moveend', refreshDerived); } catch { /* map already gone */ }
+      for (const h of Object.values(handles)) {
+        try { h?.dispose?.(); } catch (e) { console.warn('[twin] dispose failed', e); }
+      }
+      try { engine.destroy(); } catch (e) { console.warn('[twin] engine destroy failed', e); }
     },
   };
 }

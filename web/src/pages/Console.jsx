@@ -24,7 +24,15 @@ function BootOverlay() {
           <>
             <h2>Could not start</h2>
             <p className="boot-err">{error}</p>
-            <Link className="boot-back" to="/">← Back</Link>
+            {/* Reloading fixes the whole class of "the previous mount left
+                something behind" failures, so offer it first — going Back only
+                strands the user on the overview with no way in. */}
+            <div className="boot-actions">
+              <button className="boot-retry" onClick={() => window.location.reload()}>
+                Reload
+              </button>
+              <Link className="boot-back" to="/">← Back</Link>
+            </div>
           </>
         ) : (
           <>
@@ -48,15 +56,28 @@ export default function Console() {
   return (
     <div className={`console${sidebar ? '' : ' is-collapsed'}`}>
       <header className="app-header">
-        <button className="brand" onClick={() => setSidebar((v) => !v)} title="Toggle panel">
+        {/* The brand now goes home, which is what a masthead is expected to do.
+            The panel toggle it used to carry moves to its own button — hiding a
+            navigation and a layout control behind the same target meant one of
+            them was always the wrong guess. */}
+        <button
+          className="panel-toggle"
+          onClick={() => setSidebar((v) => !v)}
+          title={sidebar ? 'Hide the panel' : 'Show the panel'}
+          aria-label={sidebar ? 'Hide the panel' : 'Show the panel'}
+          aria-expanded={sidebar}
+        >
+          {sidebar ? '⟨' : '⟩'}
+        </button>
+        <Link className="brand" to="/" title="Back to the FloodTwin home page">
           <img src="/static/AIRESQ_LOGO.png" alt="" />
           <span className="brand-copy">
             <span className="brand-title">FloodTwin</span>
             <span className="brand-sub">AIResQ ClimSols · Gurugram</span>
           </span>
-        </button>
+        </Link>
         <KpiStrip />
-        <Link className="header-home" to="/">Overview</Link>
+        <Link className="header-home" to="/">Home</Link>
         <button
           className="header-home header-signout"
           title="End this console session"

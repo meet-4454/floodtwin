@@ -13,6 +13,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { GROUPS, FEATURES, featuresInGroup } from '../features/registry.js';
+import ThemeToggle from '../components/ThemeToggle.jsx';
 import '../styles/landing.css';
 
 const STATS = [
@@ -52,6 +53,7 @@ export default function Landing() {
         </div>
         <nav className="lp-nav-links">
           <a href="#features">Features</a>
+          <ThemeToggle />
           <Link className="lp-nav-cta" to="/twin">Open console →</Link>
         </nav>
       </header>
@@ -132,12 +134,6 @@ export default function Landing() {
                     {f.defaultOn && <span className="lp-badge">on by default</span>}
                   </div>
                   <p className="lp-card-short">{f.short}</p>
-                  <p className="lp-card-blurb">{f.blurb}</p>
-                  {f.children && (
-                    <div className="lp-card-children">
-                      {f.children.map((c) => <span key={c.id}>{c.label}</span>)}
-                    </div>
-                  )}
                 </article>
               ))}
             </div>

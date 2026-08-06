@@ -25,6 +25,19 @@
   --ink-fg: #eef2f4;
   --ink-fg-dim: #9fb1bd;
   --ink-border: rgba(91, 114, 133, 0.28);
+  /* Derived surfaces, named rather than inlined so the light theme below can
+     flip the whole landing page by overriding this block alone. */
+  --ink-veil: rgba(11, 20, 32, .78);      /* sticky nav over scrolling content */
+  --ink-raised: rgba(20, 35, 48, .66);    /* eyebrow pill, feature cards        */
+  --ink-card-a: rgba(20, 35, 48, .96);    /* hero card gradient, top           */
+  --ink-card-b: rgba(15, 28, 40, .96);    /* hero card gradient, bottom        */
+  --ink-band: rgba(15, 28, 40, .58);      /* alternating section band          */
+  --ink-glow-a: rgba(63, 169, 201, .20);
+  --ink-glow-b: rgba(242, 169, 59, .10);
+  --chip-bg: rgba(63, 169, 201, .10);
+  --chip-fg: #9ad6e8;
+  --chip-border: rgba(63, 169, 201, .20);
+  --ink-shadow: rgba(0, 0, 0, .42);
 
   /* light surface (console) */
   --bg-default: #ffffff;
@@ -56,6 +69,38 @@
   --font-display: 'Sora', 'Inter', system-ui, sans-serif;
   --font-body: 'Inter', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+/* ── LIGHT THEME ────────────────────────────────────────────────────────────
+   ONLY the --ink* landing palette is re-pointed here. Everything else — fonts,
+   radii, shadows, --header-h, --sidebar-w, the console's own light surface —
+   stays in :root above and must NEVER be moved into this block: those tokens
+   are what the console's grid and typography are built on, so scoping them to a
+   theme leaves them undefined in the other one and the whole console collapses
+   to unstyled boxes in a fallback font. (Which is exactly what happened once.)
+   `data-theme` is stamped on <html> by ThemeToggle and by the inline bootstrap
+   in index.html, so it is always one of "light" or "dark" before first paint. */
+:root[data-theme="light"] {
+  --ink: #f4f7f9;
+  --ink-2: #ffffff;
+  --ink-3: #eaf1f5;
+  --signal: #12708f;
+  --signal-dim: #17607a;
+  --good: #2f8d57;
+  --ink-fg: #12212e;
+  --ink-fg-dim: #52697a;
+  --ink-border: rgba(28, 62, 84, 0.18);
+  --ink-veil: rgba(244, 247, 249, .82);
+  --ink-raised: rgba(255, 255, 255, .82);
+  --ink-card-a: rgba(255, 255, 255, .98);
+  --ink-card-b: rgba(238, 245, 249, .98);
+  --ink-band: rgba(226, 237, 243, .70);
+  --ink-glow-a: rgba(63, 169, 201, .16);
+  --ink-glow-b: rgba(242, 169, 59, .12);
+  --chip-bg: rgba(18, 112, 143, .10);
+  --chip-fg: #10566e;
+  --chip-border: rgba(18, 112, 143, .22);
+  --ink-shadow: rgba(20, 45, 62, .14);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }

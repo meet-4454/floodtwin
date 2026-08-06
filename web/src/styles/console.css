@@ -13,7 +13,18 @@
   padding: 0 16px; background: #1e7099; color: var(--text-inverse);
   box-shadow: 0 2px 8px rgba(21, 90, 124, .3); z-index: 30;
 }
-.brand { display: flex; align-items: center; gap: 11px; color: inherit; }
+/* Panel toggle — its own target now that the brand is a link home. */
+.panel-toggle {
+  flex: none; width: 26px; height: 26px; border-radius: 7px; cursor: pointer;
+  color: inherit; font-size: 13px; line-height: 1;
+  background: rgba(255, 255, 255, .12); border: 1px solid rgba(255, 255, 255, .18);
+}
+.panel-toggle:hover { background: rgba(255, 255, 255, .24); }
+.brand {
+  display: flex; align-items: center; gap: 11px; color: inherit;
+  padding: 4px 8px; margin-left: -4px; border-radius: 9px; text-decoration: none;
+}
+.brand:hover { background: rgba(255, 255, 255, .12); }
 .brand img { width: 30px; height: 30px; object-fit: contain; }
 .brand-copy { display: flex; flex-direction: column; text-align: left; }
 .brand-title { font-family: var(--font-display); font-weight: 700; font-size: 15.5px; }
@@ -336,7 +347,16 @@
 .boot-card h2 { font-family: var(--font-display); font-size: 19px; margin-bottom: 7px; }
 .boot-card p { font-size: 13px; color: var(--ink-fg-dim); }
 .boot-err { color: #fda4a4; }
-.boot-back { display: inline-block; margin-top: 16px; color: var(--signal); font-weight: 600; }
+.boot-actions {
+  display: flex; align-items: center; justify-content: center; gap: 16px; margin-top: 18px;
+}
+.boot-retry {
+  padding: 9px 20px; border-radius: 9px; border: 0; cursor: pointer;
+  font: inherit; font-size: 13.5px; font-weight: 650;
+  color: #04222c; background: var(--primary-100);
+}
+.boot-retry:hover { filter: brightness(1.07); }
+.boot-back { display: inline-block; color: var(--signal); font-weight: 600; }
 .boot-spin { position: relative; width: 54px; height: 54px; margin: 0 auto 18px; }
 .boot-spin span {
   position: absolute; inset: 0; border-radius: 50%;

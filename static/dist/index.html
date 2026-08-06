@@ -19,9 +19,23 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
     <title>FloodTwin — Gurugram Flood Digital Twin</title>
-    <script type="module" crossorigin src="/assets/index-i_eL7tBi.js"></script>
+      <script>
+      // Applied before first paint so a light-mode visitor never sees a dark
+      // flash. Mirrors ThemeToggle's rule: stored choice wins, else the OS.
+      (function () {
+        try {
+          var t = localStorage.getItem('ft-theme');
+          if (t !== 'light' && t !== 'dark') {
+            t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          }
+          document.documentElement.setAttribute('data-theme', t);
+          document.documentElement.style.colorScheme = t;
+        } catch (e) { document.documentElement.setAttribute('data-theme', 'dark'); }
+      })();
+    </script>
+    <script type="module" crossorigin src="/assets/index-Diq9ICiP.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/react-C4xND61i.js">
-    <link rel="stylesheet" crossorigin href="/assets/index-Kykfnp0o.css">
+    <link rel="stylesheet" crossorigin href="/assets/index-CxAslSmK.css">
   </head>
   <body>
     <div id="root"></div>

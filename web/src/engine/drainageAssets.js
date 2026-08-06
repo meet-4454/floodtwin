@@ -12,25 +12,30 @@
  * per-frame surcharge bitmask, so the count matches the model's hourly summary
  * exactly. They are drawn as one Points cloud with a compacted draw range: at
  * peak, 12,559 nodes surcharge at once and anything per-marker would stall.
+ *
+ * RETURNS SYNCHRONOUSLY. This used to `await` three GeoJSON fetches before the
+ * caller got anything back, which put ~135 KB of pit/pump inventory on the
+ * critical path of the 3-D drainage mount — 139,798 conduits waited on a pump
+ * marker. The handle now comes back immediately with the surcharge cloud live,
+ * and the point layers add themselves when their data lands; `onReady` fires
+ * then, carrying the counts.
  * ─────────────────────────────────────────────────────────────────────────── */
 import { addLayerSafe, FONT_BOLD } from './core.js';
 
 const noFail = (url) => fetch(url).then((r) => (r.ok ? r.json() : null)).catch(() => null);
 
-export async function createDrainageAssets(engine, { depthAt } = {}) {
+export function createDrainageAssets(engine, { depthAt, onReady } = {}) {
   const { map, THREE, scene, toLocal } = engine;
-  const [inlets, outfalls, pumps] = await Promise.all([
-    noFail('/drainage/inlets_rim.geojson'),
-    noFail('/drainage/outfalls.geojson'),
-    noFail('/drainage/pumps.geojson'),
-  ]);
 
-  const groups = {};   // name → { ids:[], setVisible }
+  const groups = {};   // name → [layer ids]
   const on = { inlets: true, outfalls: true, pumps: true, surcharge: true };
   let master = false;
+  let pumps = null;
+  const stats = { inlets: 0, outfalls: 0, pumps: 0 };
 
   const addSrc = (id, data) => { if (data && !map.getSource(id)) map.addSource(id, { type: 'geojson', data }); };
 
+function addInlets(inlets) {
   // ── Inlets / gullies: only meaningful once you are in a street, so minzoom.
   if (inlets) {
     addSrc('inlets-src', inlets);
@@ -49,7 +54,9 @@ export async function createDrainageAssets(engine, { depthAt } = {}) {
     }
     groups.inlets = ['inlets-grates'];
   }
+}
 
+function addOutfalls(outfalls) {
   // ── Outfalls: a teal down-triangle, fixed screen size, distinct from pumps.
   if (outfalls) {
     addSrc('outfalls-src', outfalls);
@@ -71,9 +78,12 @@ export async function createDrainageAssets(engine, { depthAt } = {}) {
     }
     groups.outfalls = ['outfalls-circles', 'outfalls-glyph'];
   }
+}
 
+function addPumps(pumpData) {
   // ── Pumps: green idle / blue running. "Running" is decided by the SOLVED
   // water depth at the pump against its own recorded activation depth.
+  pumps = pumpData;
   if (pumps) {
     addSrc('pumps-src', pumps);
     if (!map.getLayer('pumps-circles')) {
@@ -99,6 +109,7 @@ export async function createDrainageAssets(engine, { depthAt } = {}) {
     (pumps.features || []).forEach((f, i) => { f.id = i; });
     map.getSource('pumps-src')?.setData(pumps);
   }
+}
 
   // ── Surcharging nodes (solved, per frame).
   let surchMesh = null, surchGeo = null, surchCount = 0;
@@ -129,7 +140,10 @@ export async function createDrainageAssets(engine, { depthAt } = {}) {
   const popup = (e, html) => new window.maplibregl.Popup({ offset: 10 })
     .setLngLat(e.lngLat).setHTML(html).addTo(map);
 
-  if (groups.pumps) {
+  // Registered up front rather than gated on `groups.*`: the layers they target
+  // are added asynchronously now, and MapLibre happily holds a handler for a
+  // layer id that does not exist yet.
+  {
     map.on('click', 'pumps-circles', (e) => {
       const p = e.features[0].properties || {};
       const d = depthAt ? depthAt(e.lngLat.lng, e.lngLat.lat) : null;
@@ -141,7 +155,7 @@ export async function createDrainageAssets(engine, { depthAt } = {}) {
         `<div class="ft-pop-src">MCG recorded asset</div></div>`);
     });
   }
-  if (groups.outfalls) {
+  {
     map.on('click', 'outfalls-circles', (e) => {
       const p = e.features[0].properties || {};
       popup(e, `<div class="ft-pop"><b style="color:#12b39a">Outfall</b>` +
@@ -150,12 +164,28 @@ export async function createDrainageAssets(engine, { depthAt } = {}) {
     });
   }
 
-  return {
-    stats: {
-      inlets: inlets?.features?.length || 0,
-      outfalls: outfalls?.features?.length || 0,
-      pumps: pumps?.features?.length || 0,
-    },
+  // ── Background load ───────────────────────────────────────────────────────
+  // Off the critical path entirely: the surcharge cloud is already live, and the
+  // recorded point inventories drop in when they arrive.
+  let disposed = false;
+  Promise.all([
+    noFail('/drainage/inlets_rim.geojson'),
+    noFail('/drainage/outfalls.geojson'),
+    noFail('/drainage/pumps.geojson'),
+  ]).then(([inlets, outfalls, pumpData]) => {
+    if (disposed) return;
+    addInlets(inlets);
+    addOutfalls(outfalls);
+    addPumps(pumpData);
+    stats.inlets = inlets?.features?.length || 0;
+    stats.outfalls = outfalls?.features?.length || 0;
+    stats.pumps = pumpData?.features?.length || 0;
+    applyVis();
+    onReady?.(handle);
+  }).catch((e) => console.warn('[drainage assets]', e));
+
+  const handle = {
+    stats,
     get surchargedCount() { return surchCount; },
     setVisible(v) { master = v; applyVis(); },
     setLayer(name, v) { if (name in on) { on[name] = v; applyVis(); } },
@@ -191,9 +221,11 @@ export async function createDrainageAssets(engine, { depthAt } = {}) {
     },
 
     dispose() {
+      disposed = true;
       for (const ids of Object.values(groups)) for (const id of ids) if (map.getLayer(id)) map.removeLayer(id);
       for (const s of ['inlets-src', 'outfalls-src', 'pumps-src']) if (map.getSource(s)) map.removeSource(s);
       if (surchMesh) { scene.remove(surchMesh); surchGeo.dispose(); surchMesh.material.dispose(); }
     },
   };
+  return handle;
 }

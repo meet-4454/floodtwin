@@ -20,7 +20,13 @@ export default function MapCanvas({ onReady }) {
       try {
         const { startTwin } = await import('../engine/controller.js');
         const twin = await startTwin({ container: 'ft-map' });
-        if (cancelled) { twin.destroy(); return; }
+        // Unmounted while the engine was still booting (StrictMode's dev
+        // double-mount does exactly this). Tear the finished twin down rather
+        // than leaking a live map onto a container React has already discarded.
+        if (cancelled) {
+          try { twin?.destroy?.(); } catch { /* nothing to unwind */ }
+          return;
+        }
         twinRef.current = twin;
         // The boot overlay covers the map while it initialises; once it is gone
         // the container's final box is known, so re-measure. Two frames because
@@ -34,7 +40,11 @@ export default function MapCanvas({ onReady }) {
         useTwin.getState().setError(e.message || String(e));
       }
     })();
-    return () => { cancelled = true; twinRef.current?.destroy(); twinRef.current = null; };
+    return () => {
+      cancelled = true;
+      try { twinRef.current?.destroy?.(); } catch (e) { console.warn('[map] teardown', e); }
+      twinRef.current = null;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
