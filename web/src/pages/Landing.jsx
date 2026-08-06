@@ -65,8 +65,8 @@ export default function Landing() {
               : 'Gurugram · Municipal Corporation'}
           </div>
           <h1>
-            Every street, every drain,<br />
-            <span className="lp-hl">every hour of the storm.</span>
+            From every street<br />
+            <span className="lp-hl">to every stream.</span>
           </h1>
           <div className="lp-cta-row">
             <Link className="lp-cta" to="/twin">Open the console</Link>

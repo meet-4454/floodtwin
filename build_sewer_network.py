@@ -27,6 +27,7 @@ the layer both drawable and readable.
 from __future__ import annotations
 
 import csv
+import gzip
 import json
 import math
 import sys
@@ -43,6 +44,25 @@ SIMPLIFY_DEG = 1.4e-5  # ≈1.5 m at Gurugram's latitude
 csv.field_size_limit(1 << 24)
 
 
+def open_inventory(path: Path):
+    """Open the MCG inventory whether it is stored plain or gzipped.
+
+    The CSV is 186 MB of source data that NOTHING reads at runtime — it exists
+    only so these build scripts can regenerate their outputs. Kept gzipped (13 MB)
+    it costs almost nothing to keep around, which matters because the file is not
+    in git: delete it and the derived layers become unregenerable.
+
+    Streamed in text mode either way, so peak memory is one row, exactly as
+    before. The plain file still wins if both are present.
+    """
+    if path.is_file():
+        return path.open(newline="", encoding="utf-8", errors="replace")
+    gz = path.with_name(path.name + ".gz")
+    if gz.is_file():
+        return gzip.open(gz, "rt", newline="", encoding="utf-8", errors="replace")
+    return None
+
+
 def fnum(v, default=None):
     try:
         f = float(v)
@@ -54,7 +74,10 @@ def fnum(v, default=None):
 def load_segments():
     """Read the sewer rows we can actually place on a map."""
     segs, skipped = [], 0
-    with SRC.open(newline="", encoding="utf-8", errors="replace") as fh:
+    fh = open_inventory(SRC)
+    if fh is None:
+        sys.exit(f"source inventory not found: {SRC} (or .gz)")
+    with fh:
         for row in csv.DictReader(fh):
             if row.get("network_type") != "sewer":
                 continue
@@ -163,8 +186,8 @@ def simplify(pts, tol):
 
 
 def main():
-    if not SRC.is_file():
-        sys.exit(f"source CSV not found: {SRC}")
+    if not (SRC.is_file() or SRC.with_name(SRC.name + ".gz").is_file()):
+        sys.exit(f"source CSV not found: {SRC} (or .gz)")
     print(f"reading {SRC.name} …")
     segs, skipped = load_segments()
     print(f"  {len(segs):,} sewer segments ({skipped:,} skipped: no coordinates)")

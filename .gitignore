@@ -17,6 +17,7 @@ htmlcov/
 Thumbs.db
 .vscode/
 .idea/
+drainage/d_june_5_actual_storm_plus_sewer_segments.csv
 
 # Session-signing key and the critical-asset cache: machine state, never committed.
 .session_secret

@@ -99,10 +99,12 @@ export function TimeControl() {
     const fr = manifest.frames[step];
     const t = new Date(fr.valid_at || fr.valid_time);
     if (!Number.isNaN(+t)) {
-      const base = new Date(manifest.base_valid_time || fr.valid_at);
-      label = `T+${fmtDur(t - base)}`;
+      // The wall-clock time this frame is valid FOR, not an offset from the run
+      // base — "14:30 today, 3 h ahead" is what an operator acts on; "T+3h" made
+      // them do the arithmetic themselves.
       const d = t - Date.now();
-      sub = `${z2(t.getDate())}-${MONTHS[t.getMonth()]} ${z2(t.getHours())}:${z2(t.getMinutes())} · ${Math.abs(d) <= 3e5 ? 'now' : `${fmtDur(d)} ${d < 0 ? 'ago' : 'ahead'}`}`;
+      label = `${z2(t.getDate())}-${MONTHS[t.getMonth()]} ${z2(t.getHours())}:${z2(t.getMinutes())}`;
+      sub = Math.abs(d) <= 3e5 ? 'now' : `${fmtDur(d)} ${d < 0 ? 'ago' : 'ahead'}`;
     }
   } else {
     // 13 hourly steps from the rain start at 01:00 on 09-Jul-2025.
@@ -119,7 +121,7 @@ export function TimeControl() {
         <div className="panel-header-left"><span className="panel-icon">🕐</span><span className="panel-title">Time Control</span></div>
       </div>
       <div className="time-box">
-        <div className="time-label">{dataset === 'live' ? 'Lead time' : 'Current time'}</div>
+        <div className="time-label">Current time</div>
         <div className="time-value">{label}</div>
         <div className="time-sub">{sub}</div>
       </div>

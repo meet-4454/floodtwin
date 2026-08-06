@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import collections
 import csv
+import gzip
 import json
 import math
 import sys
@@ -45,6 +46,25 @@ SNAP_M = 8.0            # endpoint match tolerance
 CELL_DEG = 2.0e-5       # ~2.2 m spatial-hash cell
 
 csv.field_size_limit(1 << 24)
+
+
+def open_inventory(path: Path):
+    """Open the MCG inventory whether it is stored plain or gzipped.
+
+    The CSV is 186 MB of source data that NOTHING reads at runtime — it exists
+    only so these build scripts can regenerate their outputs. Kept gzipped (13 MB)
+    it costs almost nothing to keep around, which matters because the file is not
+    in git: delete it and the derived layers become unregenerable.
+
+    Streamed in text mode either way, so peak memory is one row, exactly as
+    before. The plain file still wins if both are present.
+    """
+    if path.is_file():
+        return path.open(newline="", encoding="utf-8", errors="replace")
+    gz = path.with_name(path.name + ".gz")
+    if gz.is_file():
+        return gzip.open(gz, "rt", newline="", encoding="utf-8", errors="replace")
+    return None
 
 
 def load_run():
@@ -76,8 +96,8 @@ def nearest(grid, lonlat, lo, la, tol_deg):
 
 
 def main():
-    if not CSV_PATH.is_file():
-        sys.exit(f"inventory not found: {CSV_PATH}")
+    if not (CSV_PATH.is_file() or CSV_PATH.with_name(CSV_PATH.name + ".gz").is_file()):
+        sys.exit(f"inventory not found: {CSV_PATH} (or .gz)")
     man, lonlat, links = load_run()
     nn, nl = man["n_nodes"], man["n_links"]
     print(f"run: {nn:,} nodes / {nl:,} links")
@@ -95,7 +115,10 @@ def main():
     node_class = np.full(nn, UNKNOWN, dtype=np.uint8)
 
     stats = collections.Counter()
-    with CSV_PATH.open(newline="", encoding="utf-8", errors="replace") as fh:
+    fh = open_inventory(CSV_PATH)
+    if fh is None:
+        sys.exit(f"inventory not found: {CSV_PATH} (or .gz)")
+    with fh:
         for row in csv.DictReader(fh):
             kind = STORM if row["network_type"] == "storm" else SEWER
             stats["csv_" + row["network_type"]] += 1

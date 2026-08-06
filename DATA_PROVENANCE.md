@@ -55,8 +55,13 @@ of the coupled physics run — never a plausible-looking stand-in.
 `prediction.geojson`, `coordinates.bin`, `chunks/`, `polygon_index.json`,
 `trees.glb`, `cricket_stadium.glb`, `football.glb`, `terrain.bin`/`terrain.json`,
 `drainage/web/drain_network.geojson` (legacy static extract).
-`d_june_5_actual_storm_plus_sewer_segments.csv` (194 MB) is **real source data** —
-it is what `build_sewer_network.py` consumes; keep it.
+`d_june_5_actual_storm_plus_sewer_segments.csv.gz` (13 MB, was 186 MB plain) is
+**real source data** — it is what `build_sewer_network.py` and
+`build_link_classes.py` consume, and it is **not in git**, so deleting it makes
+the sewer layer and the storm/sewer split unregenerable. Nothing reads it at
+runtime, so it is stored gzipped; both scripts open either form transparently
+(`open_inventory()`), and both were verified to produce byte-identical output
+from the compressed file.
 
 ## Verification: every request the running app makes
 
@@ -96,6 +101,7 @@ node scripts/audit.js        # regenerates the table above (needs the server run
 
 ```bash
 python3 build_sewer_network.py     # sewer inventory → drainage/web/sewer_network.geojson
+                                   # (reads the .csv or .csv.gz, whichever is present)
 python3 build_link_classes.py      # storm/sewer split → drainage/sim/drain_*_class.bin
 python3 build_sim_binaries.py      # coupled run     → drainage/sim/
 python3 build_live_forecast.py     # partner forecast → drainage/live/
