@@ -36,6 +36,16 @@ export default function MapCanvas({ onReady }) {
         }));
         onReady?.(twin);
       } catch (e) {
+        // A boot that was CANCELLED is not a boot that failed. RequireAuth is
+        // optimistic: it mounts the console immediately and swaps in the login
+        // form only if the session check comes back negative — which unmounts
+        // this component while startTwin is still waiting on the map SDK, and
+        // the engine then quite correctly complains that #ft-map has left the
+        // document. Recording that as an error put `phase: 'error'` in a store
+        // that OUTLIVES the unmount, so signing in successfully dropped the user
+        // straight onto "Could not start" with a Reload button as the only way
+        // forward. Every signed-out visitor met that on their first visit.
+        if (cancelled) return;
         console.error(e);
         useTwin.getState().setError(e.message || String(e));
       }

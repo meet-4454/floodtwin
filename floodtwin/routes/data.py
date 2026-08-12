@@ -1,6 +1,7 @@
 """Simulation binaries, drainage GeoJSON and the other static datasets."""
 from __future__ import annotations
 
+import json
 import re
 
 from flask import Blueprint, abort, jsonify, send_from_directory
@@ -34,9 +35,18 @@ def drainage_hydrograph():
     return send_data(DRAINAGE_DIR, "hydrograph.json", "application/json")
 
 
-@bp.route("/wards_gurugram.geojson")
-def wards_gurugram():
-    return send_data(BASE_DIR, "wards_gurugram.geojson", "application/geo+json")
+# Administrative boundaries — both halves of the map's one "Ward boundaries"
+# toggle: the 36 MCG ward polygons and the district outline that contains them.
+# Kept as two files because they are two separate surveys; the browser unions
+# them into a single source (web/src/engine/buildings.js).
+@bp.route("/Gurugram_wards.geojson")
+def gurugram_wards():
+    return send_data(BASE_DIR, "Gurugram_wards.geojson", "application/geo+json")
+
+
+@bp.route("/Gurugram_district.geojson")
+def gurugram_district():
+    return send_data(BASE_DIR, "Gurugram_district.geojson", "application/geo+json")
 
 
 # ── Coupled 1D-2D simulation binaries (build_sim_binaries.py) ────────────────
@@ -49,9 +59,41 @@ _SIM_RE = re.compile(
 )
 
 
+def _dataset_version(directory) -> str:
+    """A token that changes whenever this dataset is rebuilt.
+
+    The manifest is written LAST by both builders and the live swap is a
+    directory rename, so the manifest's mtime is a faithful per-build identity —
+    and it needs no cooperation from the builders, which is what makes it safe to
+    stamp files that have no version of their own.
+    """
+    try:
+        return str(int((directory / "manifest.json").stat().st_mtime))
+    except OSError:
+        return "0"
+
+
+def _manifest_with_version(directory, **extra):
+    """The manifest as published, plus the version its files are addressed with.
+
+    The client stamps `?v=<version>` onto every frame binary it fetches, which is
+    what lets those be frozen for a year instead of revalidated one round trip at
+    a time (see http.cache). The manifest ITSELF stays revalidated — it is the
+    document that names the version, so a stale copy would pin the whole dataset
+    to a run that no longer exists.
+    """
+    try:
+        man = json.loads((directory / "manifest.json").read_text())
+    except (OSError, json.JSONDecodeError):
+        abort(404)
+    man["version"] = _dataset_version(directory)
+    man.update(extra)
+    return cache(jsonify(man))
+
+
 @bp.route("/sim/manifest.json")
 def sim_manifest():
-    return send_data(SIM_DIR, "manifest.json", "application/json")
+    return _manifest_with_version(SIM_DIR)
 
 
 @bp.route("/sim/<path:filename>")
@@ -69,7 +111,11 @@ def sim_binary(filename: str):
 def live_manifest():
     if not (LIVE_DIR / "manifest.json").is_file():
         return jsonify(error="live_forecast_not_built"), 404
-    return send_data(LIVE_DIR, "manifest.json", "application/json")
+    # static_version because the live dataset's GEOMETRY lives in /sim and is
+    # fetched from there — without it the client would have no version to stamp
+    # the geometry with and would fall back to revalidating those five files on
+    # every drainage mount.
+    return _manifest_with_version(LIVE_DIR, static_version=_dataset_version(SIM_DIR))
 
 
 @bp.route("/live/<path:filename>")

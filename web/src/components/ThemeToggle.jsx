@@ -6,18 +6,24 @@
  * stamps `data-theme` on <html> and remembers the choice.
  *
  * THREE THINGS IT GETS RIGHT, each of which is the usual bug:
- *  • It follows the OS until the user actually chooses. An explicit choice is
- *    stored; an unset one keeps tracking `prefers-color-scheme` live, so a
- *    machine that flips to dark at sunset takes the page with it.
+ *  • DARK IS THE DEFAULT, and it does not drift. The cover page is designed
+ *    dark — the hero video, the glow behind it and the depth ramp in the
+ *    screenshots are all keyed to a dark ground — so a visitor who has never
+ *    touched the toggle gets dark whatever their OS says. Following
+ *    `prefers-color-scheme` instead meant the same link showed a different
+ *    product depending on the machine, and a laptop set to flip at sunrise
+ *    would silently change the page under a user who never asked. An explicit
+ *    choice is still honoured and still sticks — that is what the toggle is for.
  *  • It is applied before paint. `useLayoutEffect` and the inline bootstrap in
- *    index.html mean a light-mode visitor never sees a dark flash first.
+ *    index.html mean the chosen theme is on <html> before the first pixel, so
+ *    there is no flash of the other one.
  *  • The console is deliberately untouched — it is a light instrument panel and
  *    dark chrome fights the basemap.
  * ─────────────────────────────────────────────────────────────────────────── */
-import React, { useCallback, useEffect, useLayoutEffect, useState } from 'react';
+import React, { useCallback, useLayoutEffect, useState } from 'react';
 
 const KEY = 'ft-theme';
-const media = () => window.matchMedia('(prefers-color-scheme: dark)');
+export const DEFAULT_THEME = 'dark';
 
 export function storedTheme() {
   try {
@@ -33,20 +39,9 @@ export function applyTheme(theme) {
 }
 
 export default function ThemeToggle() {
-  const [theme, setTheme] = useState(
-    () => storedTheme() || (media().matches ? 'dark' : 'light'),
-  );
+  const [theme, setTheme] = useState(() => storedTheme() || DEFAULT_THEME);
 
   useLayoutEffect(() => { applyTheme(theme); }, [theme]);
-
-  // Track the OS only while the user has expressed no preference of their own.
-  useEffect(() => {
-    if (storedTheme()) return;
-    const m = media();
-    const onChange = (e) => setTheme(e.matches ? 'dark' : 'light');
-    m.addEventListener('change', onChange);
-    return () => m.removeEventListener('change', onChange);
-  }, []);
 
   const toggle = useCallback(() => {
     setTheme((prev) => {

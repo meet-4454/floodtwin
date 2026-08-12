@@ -46,7 +46,13 @@ def _configure_logging(app: Flask) -> None:
 
 
 def create_app() -> Flask:
-    app = Flask(__name__, static_folder=str(STATIC_DIR), static_url_path="/static")
+    # static_folder=None on purpose: Flask's built-in /static route obeys
+    # SEND_FILE_MAX_AGE_DEFAULT, which is 0 here, and the _no_stale_code hook
+    # below then turns "must revalidate" into "no-store" — so the 93 KB logo was
+    # re-downloaded in full on every page load, on every page. pages.py serves
+    # /static itself with the same revalidated policy the data files get, which
+    # keeps every cache decision in one place.
+    app = Flask(__name__, static_folder=None)
     app.config["JSON_SORT_KEYS"] = False
     app.config["SEND_FILE_MAX_AGE_DEFAULT"] = STATIC_MAX_AGE
     _configure_logging(app)

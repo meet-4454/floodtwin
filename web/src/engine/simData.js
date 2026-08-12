@@ -33,6 +33,28 @@ export const DATASETS = {
 // frame below 100.
 const pad = (n) => String(n).padStart(2, '0');
 
+/* ── VERSIONED DATA URLS ──────────────────────────────────────────────────────
+ *
+ * Every dataset file is asked for as `<name>.bin?v=<manifest version>`, and the
+ * server freezes anything carrying a `?v=` for a year (routes/data.py,
+ * http.cache). Two problems go away at once.
+ *
+ * SPEED. These files were revalidated — `no-cache` — so a browser holding the
+ * whole forecast in its cache still had to ASK about every frame before drawing
+ * it. Playing 145 frames meant ~290 conditional GETs, all answered 304, and on a
+ * municipal link that round trip per frame IS the stutter. A version in the url
+ * makes a second playthrough entirely local.
+ *
+ * CORRECTNESS. The partner's run is rebuilt daily into the same filenames, so
+ * `surface_grid_07.bin` means something different tomorrow. Revalidation catches
+ * that only as long as every cache in the path honours no-cache. With the run
+ * baked into the url there is nothing to honour: a new run is new urls, and the
+ * old bytes are unreachable rather than merely suspect.
+ *
+ * The manifest itself is never versioned — it is what CARRIES the version, and
+ * it stays revalidated so a new run is always seen. */
+const withV = (url, v) => (v ? `${url}?v=${encodeURIComponent(v)}` : url);
+
 export function createSimData() {
   const state = {
     dataset: 'event',
@@ -80,7 +102,7 @@ export function createSimData() {
     if (state.gridCache.has(i)) return Promise.resolve(state.gridCache.get(i));
     const flying = state.gridInflight.get(i);
     if (flying) return flying;
-    const url = `${state.base}/surface_grid_${pad(i)}.bin`;
+    const url = withV(`${state.base}/surface_grid_${pad(i)}.bin`, state.man?.version);
     const p = fetch(url)
       .then((r) => { if (!r.ok) throw new Error(`grid ${i}`); return r.arrayBuffer(); })
       .then((buf) => {
@@ -144,7 +166,7 @@ export function createSimData() {
     const flying = state.hourInflight.get(i);
     if (flying) return flying;
     const nn = man.n_nodes, nl = man.n_links, maskB = (nn + 7) >> 3;
-    const url = `${state.base}/drain_dyn_${pad(i)}.bin`;
+    const url = withV(`${state.base}/drain_dyn_${pad(i)}.bin`, man.version);
     const p = fetch(url)
       .then((r) => { if (!r.ok) throw new Error(`dyn ${i}`); return r.arrayBuffer(); })
       .then((buf) => {
@@ -175,12 +197,17 @@ export function createSimData() {
     // endpoints sit on a solved node, median 0.21 m), so build_link_classes.py
     // recovers the split by matching endpoint pairs. Optional: if the file is
     // missing everything renders as unclassified rather than failing.
+    // The geometry lives in /sim whichever dataset is loaded, so it is stamped
+    // with /sim's version — which the live manifest publishes as static_version
+    // precisely so this does not have to fetch a second manifest to find it.
+    const sv = man?.static_version || man?.version;
+    const geomUrl = (name) => withV(`/sim/${name}.bin`, sv);
     const [geo, nstat, lstat, lclass, nclass] = await Promise.all([
-      fetch('/sim/drain_geom.bin').then((r) => r.arrayBuffer()),
-      fetch('/sim/drain_node_static.bin').then((r) => r.arrayBuffer()),
-      fetch('/sim/drain_link_static.bin').then((r) => r.arrayBuffer()),
-      fetch('/sim/drain_link_class.bin').then((r) => (r.ok ? r.arrayBuffer() : null)).catch(() => null),
-      fetch('/sim/drain_node_class.bin').then((r) => (r.ok ? r.arrayBuffer() : null)).catch(() => null),
+      fetch(geomUrl('drain_geom')).then((r) => r.arrayBuffer()),
+      fetch(geomUrl('drain_node_static')).then((r) => r.arrayBuffer()),
+      fetch(geomUrl('drain_link_static')).then((r) => r.arrayBuffer()),
+      fetch(geomUrl('drain_link_class')).then((r) => (r.ok ? r.arrayBuffer() : null)).catch(() => null),
+      fetch(geomUrl('drain_node_class')).then((r) => (r.ok ? r.arrayBuffer() : null)).catch(() => null),
     ]);
     const nn = man.n_nodes, nl = man.n_links;
     const ll = new Float32Array(geo, 0, nn * 2);

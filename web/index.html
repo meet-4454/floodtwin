@@ -11,23 +11,25 @@
     <link rel="preconnect" href="https://apis.mappls.com" crossorigin />
     <link rel="preconnect" href="https://cdn.mappls.com" crossorigin />
     <link rel="dns-prefetch" href="https://mt4.mappls.com" />
-    <!-- Same-origin data the console always needs, requested before the bundle
-         has even finished parsing. -->
-    <link rel="preload" as="fetch" href="/api/config" crossorigin />
-    <link rel="preload" as="fetch" href="/sim/manifest.json" crossorigin />
+    <!-- The console's own preloads are injected by the server, on /twin only —
+         /api/config is gone (its one value is inlined below) and the manifest
+         the console actually opens is /live, not /sim. Preloading either from
+         here spent the landing page's bandwidth on data it never reads.
+         See routes/pages.py. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
     <title>FloodTwin — Gurugram Flood Digital Twin</title>
       <script>
-      // Applied before first paint so a light-mode visitor never sees a dark
-      // flash. Mirrors ThemeToggle's rule: stored choice wins, else the OS.
+      // Applied before first paint, so the theme is on <html> before the first
+      // pixel and nobody sees a flash of the other one. Mirrors ThemeToggle's
+      // rule exactly — a stored choice wins, otherwise DARK. Not the OS: the
+      // cover page is designed dark, and following prefers-color-scheme made
+      // the same link show a different product on different machines.
       (function () {
         try {
           var t = localStorage.getItem('ft-theme');
-          if (t !== 'light' && t !== 'dark') {
-            t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-          }
+          if (t !== 'light' && t !== 'dark') t = 'dark';
           document.documentElement.setAttribute('data-theme', t);
           document.documentElement.style.colorScheme = t;
         } catch (e) { document.documentElement.setAttribute('data-theme', 'dark'); }

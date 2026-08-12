@@ -18,6 +18,21 @@ import { createFloodSurface } from './floodSurface.js';
 import { useTwin } from '../store/useTwin.js';
 import { FEATURES } from '../features/registry.js';
 
+/** Index of the frame whose valid time is closest to now; 0 if undatable. */
+function frameNearestNow(man) {
+  const frames = man?.frames;
+  if (!Array.isArray(frames) || !frames.length) return 0;
+  const now = Date.now();
+  let best = 0, bestGap = Infinity;
+  for (let i = 0; i < frames.length; i++) {
+    const t = Date.parse(frames[i]?.valid_at || '');
+    if (Number.isNaN(t)) continue;
+    const gap = Math.abs(t - now);
+    if (gap < bestGap) { bestGap = gap; best = i; }
+  }
+  return best;
+}
+
 export async function startTwin({ container }) {
   const S = useTwin.getState;
 
@@ -29,23 +44,65 @@ export async function startTwin({ container }) {
   // filename is fixed, so the manifest and grid can be in flight while the
   // Mappls SDK is still downloading.
   S().setStatus('Starting…');
-  const cfgP = fetch('/api/config').then((r) => (r.ok ? r.json() : {})).catch(() => ({}));
+  // Flask writes the config into index.html, so on a real load this costs
+  // nothing at all — the round trip that used to sit in front of the map SDK is
+  // simply gone. The fetch remains for `npm run dev`, where Vite serves the
+  // un-injected template. (See routes/pages.py.)
+  const cfgP = window.__FT_CONFIG
+    ? Promise.resolve(window.__FT_CONFIG)
+    : fetch('/api/config').then((r) => (r.ok ? r.json() : {})).catch(() => ({}));
   const sim = createSimData();
-  const manP = sim.loadManifest('event');
-  // Warm the first depth grid immediately — same URL regardless of the manifest.
-  const warmP = fetch('/sim/surface_grid_00.bin').catch(() => null);
+
+  /* OPENS ON TODAY'S FORECAST, NOT THE ARCHIVE EVENT.
+   *
+   * The partner re-runs the model every night for the day ahead, so the thing an
+   * operator wants on screen at 09:00 is today. Booting into the 09-Jul-2025
+   * reconstruction meant switching dataset by hand every single morning, and a
+   * console that opens on a year-old storm looks like a console showing stale
+   * data even when the feed is perfectly healthy.
+   *
+   * The event dataset remains the fallback, and it is a real one: /live is
+   * absent on a fresh checkout and briefly during the daily swap. Both manifests
+   * are asked for at once — they are ~6 KB — so choosing between them costs
+   * nothing, and the grid warm below targets whichever won. */
+  const liveManP = sim.loadManifest('live').then((m) => ({ id: 'live', m }), () => null);
 
   const cfg = await cfgP;
   S().setStatus('Loading map…');
-  const [engine, man] = await Promise.all([
-    createEngine({ container, mapplsKey: cfg.mapplsApiKey, onStatus: (m) => S().setStatus(m) }),
-    manP,
-  ]);
-  S().setTimeline(man, 'event');
+  // The map is the long pole — an external SDK download, then a style. Start it
+  // and DO NOT await it yet, so picking the dataset and pulling its first depth
+  // grid happen alongside rather than after. There is no blind prefetch of
+  // surface_grid_00 any more: which frame we open on is not known until the
+  // manifest lands, and warming frame 0 was fetching 1.1 MB we then discarded.
+  const engineP = createEngine({
+    container, mapplsKey: cfg.mapplsApiKey, onStatus: (m) => S().setStatus(m),
+  });
 
+  const picked = await liveManP;
+  let man, datasetId;
+  if (picked) {
+    ({ m: man, id: datasetId } = picked);
+  } else {
+    // loadManifest RESET sim state to 'live' on its way to failing, so the event
+    // load has to run now rather than having been raced above.
+    man = await sim.loadManifest('event');
+    datasetId = 'event';
+  }
+  S().setTimeline(man, datasetId);
+
+  // A day-ahead forecast opens at NOW, not at its 05:00 base — an operator
+  // scrubbing back six hours every morning to reach the present is the whole
+  // reason the timeline felt wrong. The archive event has no "now" and opens at
+  // its start, as before.
+  const step0 = datasetId === 'live' ? frameNearestNow(man) : 0;
+  useTwin.setState({ dataset: datasetId, step: step0 });
+
+  // Fetch and decode that frame WHILE the map is still coming up.
+  const framePrimed = sim.useFrame(step0);
+
+  const engine = await engineP;
   S().setStatus('Building flood surface…');
-  await warmP;                  // already resolved in practice; keeps the cache hot
-  await sim.useFrame(0);
+  await framePrimed;
   const flood = createFloodSurface(engine, sim);
   engine.layers.flood = flood;
   S().setMaxDepth(sim.maxDepthScale);
@@ -350,6 +407,60 @@ export async function startTwin({ container }) {
     }
   }
 
+  /* ── THE RUN CHANGES UNDER A CONSOLE THAT IS ALREADY OPEN ──────────────────
+   *
+   * The partner publishes a new day-ahead run every morning and a cron rebuilds
+   * /live into the SAME filenames (refresh_live_forecast.sh). A console left
+   * open across that swap was stuck: it had the previous run's manifest in
+   * memory, and its frames cached against it, so it went on showing yesterday
+   * indefinitely. The status poll already knew — it had been putting "a newer
+   * run is available" on screen for hours — but nothing acted on it, and the
+   * only cure was for somebody to notice and press reload. On a wall display,
+   * nobody presses reload.
+   *
+   * Worse than merely old: because the swap reuses the filenames, a frame the
+   * console had NOT yet fetched came back from the new run and was decoded
+   * against the old manifest. That is how a stale forecast turns into an
+   * incoherent one.
+   *
+   * So: when the server's built run_id stops matching the one this session
+   * loaded, reload the live manifest in place. Caches are dropped, every url is
+   * re-stamped with the new version, and the timeline lands on the frame nearest
+   * the clock — the camera, the layers and every toggle stay exactly as the
+   * operator left them. */
+  let resyncing = false;
+  async function maybeResyncLive(rs) {
+    const builtRun = rs?.built?.run_id;
+    if (!builtRun || resyncing) return;
+    // Only the live feed is rebuilt; the July event reconstruction is fixed.
+    if (S().dataset !== 'live' || sim.state.dataset !== 'live') return;
+    const loaded = sim.state.man?.run_id;
+    if (!loaded || loaded === builtRun) return;
+
+    resyncing = true;
+    try {
+      S().setStatus('A newer forecast run is live — resyncing…');
+      const m = await sim.loadManifest('live');
+      S().setTimeline(m, 'live');
+      const step = frameNearestNow(m);
+      useTwin.setState({ step });
+      // Explicitly, not just via the store: when the new run's nearest frame has
+      // the same INDEX as the old one, nothing in the store changes and the
+      // subscriber below would never fire — leaving the previous run's grid on
+      // screen under the new run's manifest.
+      await applyStep(step);
+      S().setStatus('Ready');
+    } catch (e) {
+      // The swap is not atomic from the client's side: a manifest read during
+      // the rename can 404. Leave the current run on screen and pick it up on
+      // the next poll rather than blanking a working console.
+      console.warn('[live resync]', e);
+      S().setStatus('Ready');
+    } finally {
+      resyncing = false;
+    }
+  }
+
   // ── wire the store ────────────────────────────────────────────────────────
   //
   // RE-ENTRANCY: every handler below may itself write to the store (a status
@@ -377,6 +488,8 @@ export async function startTwin({ container }) {
     }
     if (s.dataset !== was.dataset) applyDataset(s.dataset);
     else if (s.step !== was.step) applyStep(s.step);   // the dataset path re-steps itself
+    // Freshness is polled by DataSourcePanel; the engine only reacts to it.
+    if (s.runStatus !== was.runStatus) maybeResyncLive(s.runStatus);
     if (s.opacity !== was.opacity) flood.setOpacity(s.opacity);
     if (s.bands !== was.bands || s.maxDepth !== was.maxDepth) flood.setBands(s.bands, S().bandEdges());
   });
@@ -426,7 +539,14 @@ export async function startTwin({ container }) {
   await Promise.all(boot);
   flood.setBands(S().bands, S().bandEdges());
   flood.setZoom(engine.map.getZoom());
-  await applyStep(0);
+  // step0, NOT 0. This used to be a literal zero, which was invisible while the
+  // console always opened on frame 0 — it re-applied the frame that was already
+  // loaded. Now that a live forecast opens at the frame nearest the clock, a
+  // hardcoded 0 silently overwrote that grid with the run's 05:00 frame (150 wet
+  // cells — effectively dry) while the timeline still read the current time. The
+  // flood only appeared once you scrubbed, which is what made it look like a
+  // caching fault rather than the frame being clobbered.
+  await applyStep(step0);
   reconcile();
 
   S().setPhase('ready');

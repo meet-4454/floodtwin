@@ -10,6 +10,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useTwin, DEPTH_BAND_STOPS } from '../store/useTwin.js';
 import { cssGradient, colorForDepth } from '../engine/palette.js';
 import { DATASETS } from '../engine/simData.js';
+import { runDay } from '../lib/runDay.js';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const z2 = (n) => String(n).padStart(2, '0');
@@ -54,13 +55,25 @@ export function DataSourcePanel() {
       </div>
       {/* Only the live feed carries a status line — its freshness is the thing
           you have to know. The event dataset is fixed, so its metrics said the
-          same thing every time and were dropped. */}
+          same thing every time and were dropped.
+
+          It says which DAY the run covers, and says outright when a newer one
+          exists. Showing only a formatted date meant a forecast that had stopped
+          refreshing looked identical to one that was current — which is how a
+          run went a full day stale without anyone noticing. */}
       {dataset === 'live' && (
-        <div className="run-status" title={DATASETS[dataset]?.blurb}>
-          <span className={`run-dot ${runStatus?.stale ? 'is-stale' : 'is-live'}`} />
-          {runStatus?.building ? 'Syncing a new run…'
-            : built ? `From ${new Date(built.base_valid_time).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}`
-            : 'Checking run…'}
+        <div
+          className="run-status"
+          title={runStatus?.upstream_error
+            ? `Partner feed unreachable: ${runStatus.upstream_error}`
+            : DATASETS[dataset]?.blurb}
+        >
+          <span className={`run-dot ${runStatus?.building ? 'is-syncing' : runStatus?.stale ? 'is-stale' : 'is-live'}`} />
+          {runStatus?.building ? "Syncing a newer run…"
+            : !built ? 'Checking run…'
+            : runStatus?.stale
+              ? `Showing ${runDay(built.base_valid_time) || 'an older run'} — a newer run is available`
+              : `Forecast for ${runDay(built.base_valid_time) || 'the current run'}, from ${new Date(built.base_valid_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`}
         </div>
       )}
     </div>
@@ -235,30 +248,72 @@ export function KpiStrip() {
 }
 
 /* ── Hotspots ─────────────────────────────────────────────────────────────── */
+/* Locality names, cached OUTSIDE React.
+ *
+ * `hotspots` is recomputed from the depth grid on every timestep and every
+ * camera move, so it is a new array many times a second during playback. The
+ * previous version kept names in component state and listed `hotspots` as the
+ * only dependency, which produced three compounding faults:
+ *   • it re-requested on every recompute, so scrubbing the timeline fired a
+ *     storm of /api/locality calls for coordinates it had usually just resolved;
+ *   • `names` was read from a stale closure while excluded from the deps, so
+ *     `{...names}` could clobber results that had landed in between;
+ *   • a name that failed was never remembered as tried, so it was asked for
+ *     again forever — and because the server was returning "" for everything
+ *     (Nominatim 429), that was every row, on every frame.
+ * Module scope makes the cache outlive both the array identity and the mount;
+ * `pending` collapses duplicate requests for the same cell.
+ *
+ * Keyed to 3 decimal places — about 110 m, the same cell the server caches on,
+ * so a hotspot that drifts slightly between frames stays one lookup. */
+const localityCache = new Map();
+const localityPending = new Set();
+const localityKey = (s) => `${s.lat.toFixed(3)},${s.lng.toFixed(3)}`;
+
 export function HotspotsPanel({ twin }) {
   const hotspots = useTwin((s) => s.hotspots);
   const maxDepth = useTwin((s) => s.maxDepth);
   const on = useTwin((s) => s.features.hotspots);
-  const [names, setNames] = useState({});
+  // Bumped only when a lookup actually lands, so a resolved name repaints the
+  // list without the array's identity churn driving renders on its own.
+  const [, bumpNames] = useState(0);
+
+  // The set of cells on screen, as a stable string: this changes when the
+  // hotspots MOVE, not merely when they are recomputed into a new array.
+  const cellSig = hotspots.map(localityKey).join('|');
 
   useEffect(() => {
     if (!hotspots.length) return;
-    const key = (s) => `${s.lat.toFixed(3)},${s.lng.toFixed(3)}`;
-    const need = hotspots.filter((s) => !names[key(s)]);
+    const need = [];
+    const seen = new Set();
+    for (const s of hotspots) {
+      const k = localityKey(s);
+      if (localityCache.has(k) || localityPending.has(k) || seen.has(k)) continue;
+      seen.add(k);
+      need.push(s);
+    }
     if (!need.length) return;
+
     let alive = true;
-    fetch('/api/locality?pts=' + encodeURIComponent(need.map((s) => `${s.lat.toFixed(5)},${s.lng.toFixed(5)}`).join(';')))
+    const keys = need.map(localityKey);
+    keys.forEach((k) => localityPending.add(k));
+    fetch('/api/locality?pts=' + encodeURIComponent(
+      need.map((s) => `${s.lat.toFixed(5)},${s.lng.toFixed(5)}`).join(';')))
       .then((r) => (r.ok ? r.json() : { results: [] }))
       .then(({ results }) => {
-        if (!alive) return;
-        const next = { ...names };
-        for (const r of results || []) if (r?.name) next[`${r.lat.toFixed(3)},${r.lng.toFixed(3)}`] = r.name;
-        setNames(next);
+        for (const r of results || []) {
+          if (!r) continue;
+          // Record the miss too. An unnamed cell is a real answer — asking again
+          // next frame is what turned one failure into a permanent request loop.
+          localityCache.set(`${r.lat.toFixed(3)},${r.lng.toFixed(3)}`, r.name || '');
+        }
+        if (alive) bumpNames((n) => n + 1);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => { keys.forEach((k) => localityPending.delete(k)); });
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hotspots]);
+  }, [cellSig]);
 
   if (!on || !hotspots.length) return null;
   return (
@@ -269,7 +324,16 @@ export function HotspotsPanel({ twin }) {
           <button key={i} className="hs-row" onClick={() => twin?.flyTo(s.lng, s.lat, 16)}>
             <span className="hs-dot" style={{ background: colorForDepth(s.max, maxDepth) }}>{i + 1}</span>
             <span className="hs-main">
-              <span className="hs-loc">{names[`${s.lat.toFixed(3)},${s.lng.toFixed(3)}`] || 'Locating…'}</span>
+              {/* Three distinct states, where there used to be one. A resolved
+                  name; a cell the geocoder genuinely could not name (falls back
+                  to its coordinates, which still locate it); and only a lookup
+                  actually in flight says "Locating…". */}
+              <span className="hs-loc">
+                {localityCache.get(localityKey(s))
+                  || (localityCache.has(localityKey(s))
+                    ? `${s.lat.toFixed(4)}, ${s.lng.toFixed(4)}`
+                    : 'Locating…')}
+              </span>
               <span className="hs-sub">avg {s.avg.toFixed(2)} m · peak {s.max.toFixed(2)} m</span>
             </span>
           </button>

@@ -22,3 +22,21 @@ drainage/d_june_5_actual_storm_plus_sewer_segments.csv
 # Session-signing key and the critical-asset cache: machine state, never committed.
 .session_secret
 drainage/assets_cache.json
+# Reverse-geocoded hotspot names. Machine state: rebuilt on demand from Google,
+# shared between gunicorn workers, and worth nothing on another host.
+drainage/locality_cache.json
+
+# Gzip sidecars (scripts/gzip_sidecars.py, build_live_forecast.py). Derived from
+# the binary beside them and regenerable in seconds; committing them would double
+# the data tree and guarantee a stale copy the moment a source is rebuilt.
+*.bin.gz
+*.json.gz
+*.geojson.gz
+
+# The staging dir a rebuild works in, and the swap's brief backup. Both are
+# transient by design — build_live_forecast.py clears them on the next run.
+drainage/live_stage/
+drainage/live_prev/
+
+# The refresh log is machine state, and it grows forever.
+drainage/live_refresh.log

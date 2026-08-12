@@ -21,6 +21,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { PANEL_GROUPS, PANEL_FEATURES, panelFeaturesInGroup } from '../features/registry.js';
 import { useTwin } from '../store/useTwin.js';
+import { onLayerIntent } from '../warmConsole.js';
 
 function ChildRow({ parentId, child, count }) {
   const key = `${parentId}.${child.id}`;
@@ -141,7 +142,11 @@ function FeatureRow({ feature, openId, setOpenId }) {
 
   return (
     <div className={`lyr-feature${on ? ' is-on' : ''}${status === 'error' ? ' is-err' : ''}`}>
+      {/* Hovering starts the download and the chunk import for the heavy layers
+          (drainage, sewer), so the click lands on warm data instead of paying
+          2.4 MB and an import from a standing start. See warmConsole.js. */}
       <button type="button" className="lyr-toggle" onClick={() => toggle(feature.id)}
+              {...(on ? {} : onLayerIntent(feature.id))}
               aria-pressed={on} title={title}>
         <span className="lyr-icon">{feature.icon}</span>
         <span className="lyr-label">{feature.label}</span>

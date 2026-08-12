@@ -14,6 +14,10 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { GROUPS, FEATURES, featuresInGroup } from '../features/registry.js';
 import ThemeToggle from '../components/ThemeToggle.jsx';
+import { runDay } from '../lib/runDay.js';
+// Warms the console's code chunk on hover/focus, nothing more — this page still
+// pulls no three.js and no Mappls SDK of its own (see the header note).
+import { onIntent } from '../warmConsole.js';
 import '../styles/landing.css';
 
 const STATS = [
@@ -54,16 +58,21 @@ export default function Landing() {
         <nav className="lp-nav-links">
           <a href="#features">Features</a>
           <ThemeToggle />
-          <Link className="lp-nav-cta" to="/twin">Open console →</Link>
+          <Link className="lp-nav-cta" to="/twin" {...onIntent()}>Open console →</Link>
         </nav>
       </header>
 
       <section className="lp-hero">
         <div className="lp-hero-copy">
+          {/* Names the day the run covers rather than just printing its date:
+              "built · 06 Aug" reads as fine on 07 Aug, which is precisely how a
+              stalled refresh stayed invisible. */}
           <div className="lp-eyebrow">
             <span className={`lp-dot ${fresh ? 'is-live' : 'is-idle'}`} />
             {built
-              ? `Forecast run ${fresh ? 'current' : 'built'} · ${new Date(built.base_valid_time).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}`
+              ? (fresh
+                  ? `Forecast live for ${runDay(built.base_valid_time)}`
+                  : `Forecast showing ${runDay(built.base_valid_time)} · newer run pending`)
               : 'Gurugram · Municipal Corporation'}
           </div>
           <h1>
@@ -71,7 +80,7 @@ export default function Landing() {
             <span className="lp-hl">to every stream.</span>
           </h1>
           <div className="lp-cta-row">
-            <Link className="lp-cta" to="/twin">Open the console</Link>
+            <Link className="lp-cta" to="/twin" {...onIntent()}>Open the console</Link>
             <a className="lp-cta lp-cta-ghost" href="#features">See what it does</a>
           </div>
           <div className="lp-stats">
@@ -143,7 +152,7 @@ export default function Landing() {
 
       <section className="lp-section lp-section-alt lp-closing">
         <div className="lp-foot-cta">
-          <Link className="lp-cta" to="/twin">Open the console</Link>
+          <Link className="lp-cta" to="/twin" {...onIntent()}>Open the console</Link>
         </div>
       </section>
 

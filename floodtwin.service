@@ -6,13 +6,25 @@ After=network.target
 Type=simple
 User=production
 WorkingDirectory=/home/production/airesq/floodtwin
+# worker-class: NOT stock gthread. Stock hands every accepted connection straight
+# to the thread pool, where it blocks on an untimed read for the request line — so
+# a peer that connects and stays quiet holds one of --threads slots forever.
+# cloudflared keeps a pool of up to 100 idle upstream connections to this origin,
+# which wedged all four workers and was the real source of the site-wide stalls.
+# See floodtwin/worker.py.
+#
+# keep-alive: must exceed cloudflared's own 90 s idle timeout, so the PROXY always
+# retires an idle socket first. If the origin closes first, cloudflared can pick a
+# socket that is already going away and the request dies on a race. Idle
+# connections are nearly free now that they sit in the poller rather than on a
+# thread, so a long keep-alive costs an fd and nothing else.
 ExecStart=/home/production/miniconda3/envs/floodtwin/bin/gunicorn \
     --workers 4 \
-    --worker-class gthread \
-    --threads 4 \
+    --worker-class floodtwin.worker.PollFirstThreadWorker \
+    --threads 8 \
     --timeout 120 \
     --graceful-timeout 30 \
-    --keep-alive 5 \
+    --keep-alive 100 \
     --bind 0.0.0.0:9120 \
     --access-logfile - \
     --error-logfile - \

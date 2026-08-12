@@ -1,6 +1,6 @@
 """FloodTwin entry point.
 
-Local dev:  python server.py            (Flask on :9121)
+Local dev:  python server.py            (Flask on :9120)
 Production: gunicorn server:app
 
 The application itself is assembled in floodtwin/__init__.py; this file only
@@ -15,7 +15,7 @@ app = create_app()
 if __name__ == "__main__":
     app.run(
         host="0.0.0.0",
-        port=int(os.environ.get("PORT", "9121")),
+        port=int(os.environ.get("PORT", "9120")),
         debug=os.environ.get("FLASK_DEBUG", "0") == "1",
     )
 

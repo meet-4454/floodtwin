@@ -7,16 +7,31 @@
  * is an HttpOnly session cookie this code can never see — it only ever asks
  * "am I in?" via /api/auth/session.
  *
- * Children are not mounted until that answer is yes, so the console's engine,
- * three.js and simulation binaries are never even fetched by a visitor who
- * hasn't signed in.
+ * THE GATE IS OPTIMISTIC, ON PURPOSE. The console mounts immediately and the
+ * session check runs beside it; if the server says no, the login form replaces
+ * what was mounted. Blocking on the check first meant every entry to the tool
+ * paid a full round trip before the engine chunk, the map SDK and the first
+ * depth grid could even be requested — with nothing on screen but a spinner —
+ * and that round trip was pure serial cost for the signed-in case, which is
+ * essentially every case.
+ *
+ * WHAT THAT TRADES AWAY: a signed-out visitor now briefly sees the console
+ * shell, and their browser starts fetching simulation binaries, before being
+ * bounced to the login form. That is acceptable here because those binaries are
+ * NOT access-controlled anyway — /sim, /live and /drainage are served to anyone
+ * who asks (see routes/data.py). This gate has always protected the interface,
+ * not the data, so mounting early exposes nothing new. If the data routes ever
+ * do get locked down, this must go back to blocking.
  * ─────────────────────────────────────────────────────────────────────────── */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import '../styles/auth.css';
 
 export default function RequireAuth({ children }) {
-  const [phase, setPhase] = useState('checking');   // checking | out | in
+  // 'open' renders the console while the answer is still outstanding. Only an
+  // explicit rejection swaps in the login form, so the common path — a valid
+  // session — never waits on the network to show anything.
+  const [phase, setPhase] = useState('open');       // open | out | in
 
   useEffect(() => {
     let alive = true;
@@ -26,8 +41,16 @@ export default function RequireAuth({ children }) {
     const check = () =>
       fetch('/api/auth/session', { cache: 'no-store', credentials: 'same-origin' })
         .then((r) => (r.ok ? r.json() : null))
-        .then((d) => { if (alive) setPhase(d?.authenticated ? 'in' : 'out'); })
-        .catch(() => { if (alive) setPhase('out'); });
+        .then((d) => {
+          if (!alive || !d) return;      // unreadable answer is not a rejection
+          setPhase(d.authenticated ? 'in' : 'out');
+        })
+        // A network blip is NOT a sign-out. While the gate blocked, failing
+        // closed only cost a login form on a blank screen; now that the console
+        // is already mounted, it would tear down a working session over one
+        // dropped request. Only an explicit `authenticated: false` closes it —
+        // and the server still refuses anything privileged regardless.
+        .catch(() => {});
     check();
 
     // BACK/FORWARD CACHE. Sign out, then press Back: the browser can restore the
@@ -40,16 +63,7 @@ export default function RequireAuth({ children }) {
     return () => { alive = false; window.removeEventListener('pageshow', onShow); };
   }, []);
 
-  if (phase === 'checking') {
-    return (
-      <div className="auth-shell">
-        <div className="auth-card is-checking">
-          <div className="auth-spin"><span /><span /></div>
-          <p>Checking your session…</p>
-        </div>
-      </div>
-    );
-  }
+  // 'open' and 'in' both render the tool; only a rejection interrupts it.
   if (phase === 'out') return <LoginGate onSuccess={() => setPhase('in')} />;
   return children;
 }

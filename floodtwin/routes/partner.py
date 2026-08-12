@@ -25,8 +25,16 @@ from ..config import LIVE_DIR, PARTNER_API_KEY, PARTNER_BASE_URL
 bp = Blueprint("partner", __name__)
 
 _LATEST_TTL = 5 * 60           # run metadata: poll every 5 min
+# The run metadata is a few KB and every open console asks for it on a timer, so
+# it gets a SHORT timeout: this is a status line, and a partner that has gone
+# quiet should grey the dot out in seconds rather than pin a request — and a
+# server thread — for twenty. The big per-frame GeoJSON keeps the long one.
+_LATEST_TIMEOUT = 6
 _FRAME_TTL = 24 * 60 * 60      # a published frame's data never changes
 _CACHE_LIMIT = 400             # frame bodies can be tens of MB each
+# A staging dir untouched for this long belongs to a build that died, not one
+# that is running: the transcoder writes two files per frame every few seconds.
+_STAGE_STALE_AFTER = 10 * 60
 
 _lock = threading.Lock()
 _cache: dict[str, dict] = {}
@@ -34,7 +42,7 @@ _RUN_ID_RE = re.compile(r"^[A-Za-z0-9_\-]{1,128}$")
 _VALID_TIME_RE = re.compile(r"^[A-Za-z0-9]{1,32}$")
 
 
-def _fetch(path: str, ttl: int):
+def _fetch(path: str, ttl: int, timeout: int = 20):
     if not PARTNER_API_KEY:
         raise RuntimeError("partner_api_key_not_configured")
     url = f"{PARTNER_BASE_URL}{path}"
@@ -47,7 +55,7 @@ def _fetch(path: str, ttl: int):
         "X-API-Key": PARTNER_API_KEY,
         "User-Agent": "FloodTwin/2.0",
     })
-    with urllib.request.urlopen(req, timeout=20) as resp:
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
         body = resp.read()
         ctype = resp.headers.get("Content-Type", "application/octet-stream")
     with _lock:
@@ -81,7 +89,7 @@ def live_forecast_status():
 
     upstream, err = None, None
     try:
-        body, _ = _fetch("/api/partners/floodtwin/latest", _LATEST_TTL)
+        body, _ = _fetch("/api/partners/floodtwin/latest", _LATEST_TTL, _LATEST_TIMEOUT)
         u = json.loads(body)
         upstream = {
             "run_id": u.get("run_id"),
@@ -94,8 +102,22 @@ def live_forecast_status():
 
     # A rebuild in flight leaves a staging dir behind; surface it so the UI can
     # say "syncing" rather than "stale".
+    #
+    # But only while it is actually MOVING. A build that is killed part-way
+    # (deploy, OOM, reboot) leaves the stage behind too, and a bare existence
+    # check then reports "syncing…" forever — the single most misleading thing
+    # this endpoint can say, because it tells an operator to wait for something
+    # that is never coming and hides a stale dataset behind a reassuring
+    # message. The builder touches a file every few seconds, so a stage whose
+    # newest file has gone quiet is abandoned, not busy.
     stage = LIVE_DIR.parent / "live_stage"
-    building = stage.is_dir() and any(stage.glob("*.bin"))
+    building = False
+    if stage.is_dir():
+        try:
+            newest = max((p.stat().st_mtime for p in stage.glob("*.bin")), default=0)
+            building = (time.time() - newest) < _STAGE_STALE_AFTER
+        except OSError:      # the swap can delete it out from under us
+            building = False
 
     return jsonify(
         built=built, upstream=upstream, upstream_error=err, building=building,
@@ -108,7 +130,7 @@ def live_forecast_status():
 def live_forecast_latest():
     """Latest partner run metadata: run_id + per-frame stats."""
     try:
-        body, ctype = _fetch("/api/partners/floodtwin/latest", _LATEST_TTL)
+        body, ctype = _fetch("/api/partners/floodtwin/latest", _LATEST_TTL, _LATEST_TIMEOUT)
     except urllib.error.HTTPError as exc:
         return jsonify(error=f"partner_http_{exc.code}"), 502
     except Exception as exc:  # noqa: BLE001

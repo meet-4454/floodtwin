@@ -22,7 +22,7 @@ of the coupled physics run — never a plausible-looking stand-in.
 | Side-entry pits / gullies | `drainage/web/inlets_rim.geojson` | 5,922 MCG pits with rim levels. |
 | Outfalls | `drainage/web/outfalls.geojson` | Network discharge register. |
 | Storm pumps | `drainage/web/pumps.geojson` | 50 MCG pumps with recorded activation/stop depths. "Running" is decided by the **solved** depth at the pump vs its own activation depth. |
-| Ward boundaries | `wards_gurugram.geojson` | MCG wards. |
+| Ward boundaries | `Gurugram_wards.geojson`, `Gurugram_district.geojson` | 36 MCG ward polygons (2023 delimitation, notification 19/45/2023-6C I) and the Gurugram district outline. Drawn as one layer: solid district edge, dashed ward subdivisions. |
 | Critical assets | Google Places (New) via `/api/assets` | ~1,300 POIs, 4×4 grid-tiled and deduped by place id. OSM/Overpass fallback. |
 | Road geometry | Mappls basemap rendered features | Real road network; passability is that geometry sampled against the run's depth grid. |
 | 3-D buildings | Mappls vector basemap `fill-extrusion` layers | The basemap's own footprints. |
@@ -77,7 +77,7 @@ traced. Result — 2026-08-04, zero JS errors, zero HTTP ≥ 400:
 | `/sim/drain_link_class · drain_node_class .bin` | derived from the MCG inventory by endpoint match; unmatched stay "unclassified" | ⚠️ derived, labelled |
 | `/live/manifest.json`, `surface_grid_NNN.bin`, `drain_dyn_NNN.bin` | MCG partner daily forecast | ✅ partner output |
 | `/drainage/inlets_rim · outfalls · pumps · sewer_network .geojson` | MCG/GMDA recorded inventories | ✅ |
-| `/wards_gurugram.geojson` | MCG ward boundaries | ✅ |
+| `/Gurugram_wards.geojson`, `/Gurugram_district.geojson` | MCG ward boundaries, Gurugram district boundary | ✅ |
 | `/api/assets` | Google Places (New), Overpass fallback | ✅ |
 | `/api/geocode/autocomplete`, `/api/locality` | Google Places / OSM Nominatim | ✅ |
 | `/api/live-forecast/status` | partner run freshness | ✅ |

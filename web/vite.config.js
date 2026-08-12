@@ -9,7 +9,8 @@ import { resolve } from 'node:path';
 const FLASK = process.env.FLOODTWIN_API || 'http://127.0.0.1:9121';
 const proxied = [
   '/api', '/sim', '/live', '/drainage', '/chunks', '/dem_tiles',
-  '/coordinates.bin', '/polygon_index.json', '/wards_gurugram.geojson',
+  '/coordinates.bin', '/polygon_index.json',
+  '/Gurugram_wards.geojson', '/Gurugram_district.geojson',
   '/prediction.geojson', '/assets', '/healthz',
 ];
 

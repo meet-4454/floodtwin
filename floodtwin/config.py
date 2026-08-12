@@ -27,6 +27,7 @@ DIST_DIR = STATIC_DIR / "dist"
 
 DEFAULT_MAPPLS_KEY = "07ed2c801ad7e2fd64b3fdffd084b0be"
 ONE_WEEK_SECONDS = 60 * 60 * 24 * 7
+ONE_YEAR_SECONDS = 60 * 60 * 24 * 365
 
 DEBUG_MODE = os.environ.get("FLASK_DEBUG", "0") == "1"
 

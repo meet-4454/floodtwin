@@ -48,10 +48,16 @@ floodtwin3/
 │
 ├─ build_sewer_network.py  MCG sewer CSV → sewer_network.geojson
 ├─ build_link_classes.py   storm/sewer class per solved conduit → drain_*_class.bin
-├─ build_sim_binaries.py   coupled run NPZ → drainage/sim/
-├─ build_live_forecast.py  partner API → drainage/live/
+├─ build_live_forecast.py  partner API → drainage/live/   (the daily transcode)
+├─ refresh_live_forecast.sh  cron entry point: poll for a new run, rebuild
+├─ scripts/gzip_sidecars.py  write the .gz sidecars http.py serves
 └─ legacy/                 the superseded vanilla front-end, for reference
 ```
+
+`build_sim_binaries.py`, which produced `drainage/sim/` from the coupled run's
+NPZ, is **not in this tree** — `/sim` is a fixed dataset (the 09-Jul-2025 event)
+that has already been built and is not regenerated. Nothing day-to-day needs it;
+re-solving that event would.
 
 ## Running it
 
@@ -104,6 +110,22 @@ around **05:00–05:20 IST**. `refresh_live_forecast.sh` (cron, every 20 min) po
 for a new `run_id` rather than guessing a clock time; it exits in ~0.5 s when
 nothing changed, and `flock` stops a slow rebuild overlapping the next tick.
 
+**The cron entry IS the pipeline.** Without it nothing rebuilds `/live`, and the
+app keeps serving the last run it managed to build — indefinitely, and without
+complaining, because a day-old forecast is still a valid dataset. Check it first
+whenever "today's forecast isn't showing":
+
+```bash
+crontab -l | grep refresh_live_forecast        # the schedule exists at all
+python build_live_forecast.py --check          # built run_id vs the partner's
+tail -20 drainage/live_refresh.log             # what the last polls did
+./refresh_live_forecast.sh                     # force a catch-up now
+```
+
+`--check` is the one that answers it outright: it prints the built `run_id`, the
+partner's current `run_id`, and whether a rebuild is needed. If the partner is
+ahead and the log has no recent entries, the schedule is gone, not the data.
+
 Measured on 04-Aug-2026 (`newmodel_partner_daily_20260803_233000_518eac4f`):
 
 | Stage | Time |
@@ -143,6 +165,33 @@ node scripts/audit.js
 
 ## Notes worth knowing
 
+* **The console's engine chunk is warmed before it is asked for.** `/twin` was
+  four round trips deep before the map could start: bundle → `/api/auth/session`
+  → `import(controller.js)` → `/api/config` → the Mappls SDK. The engine chunk is
+  the big one (three.js alone is 154 KB gzipped) and it was not requested until
+  the session check came back, so the network idled through the auth round trip
+  and then did its largest download from a standing start. `warmConsole.js` starts
+  that import as RequireAuth mounts, and the landing page's CTAs start it on
+  hover/focus. **Code only, never data** — the gate's contract (an unsigned-in
+  visitor pulls no simulation binaries) and the landing page's (no three.js, no
+  Mappls SDK on the cover page) both still hold, because warming imports the
+  module graph without constructing anything.
+* **The data binaries are served from build-time `.gz` sidecars.** Compressing a
+  frame costs 9–49 ms and was paid on the first request for every file *in every
+  gunicorn worker* — playing a 145-frame forecast through once burned ~9 s of CPU
+  per worker and stuttered on the first pass only. `build_live_forecast.py` writes
+  `<name>.bin.gz` as it builds; `scripts/gzip_sidecars.py` does it for `/sim` and
+  anything restored by hand. A sidecar is used only when it is at least as new as
+  its source, so a rebuilt binary with a stale sidecar recompresses rather than
+  serving the previous run's bytes. The in-memory fallback cache is bounded now;
+  it used to hold every file ever requested, per worker, forever.
+* **Dark is the landing page's default, and it does not follow the OS.** The
+  cover page is designed dark — hero video, glow, depth ramp. Tracking
+  `prefers-color-scheme` meant the same link showed a different product depending
+  on the machine, and a laptop set to flip at sunrise changed the page under a
+  user who never asked. An explicit toggle choice still wins and still sticks.
+  The rule lives in exactly two places and they must agree or the page flashes:
+  `ThemeToggle.jsx` and the inline bootstrap in `web/index.html`.
 * **The boot chain runs in parallel, not in series.** config → SDK → map →
   manifest → grid → paint was five sequential round trips even though only one
   actually depends on another: the flood data does not need the API key, and the

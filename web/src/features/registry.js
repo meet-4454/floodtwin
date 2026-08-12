@@ -151,10 +151,11 @@ export const FEATURES = [
     group: 'context',
     icon: '🗺️',
     label: 'Ward boundaries',
-    short: 'MCG ward outlines and names',
+    short: 'MCG ward outlines and the district edge',
     blurb:
       'The city’s ward outlines, so results can be read against the administrative area — and the ' +
-      'team — responsible for them.',
+      'team — responsible for them. The Gurugram district boundary is drawn with them as a solid ' +
+      'outer edge, so it is clear where the city’s wards end and the rest of the district begins.',
     defaultOn: true,
   },
 

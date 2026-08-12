@@ -107,8 +107,14 @@
 .seg button { padding: 5px 6px; border-radius: 6px; font-size: 11.5px; font-weight: 600; color: var(--text-secondary); }
 .seg button.is-active { background: #fff; color: var(--accent-blue-700); box-shadow: var(--shadow-sm); }
 .run-status { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 10.5px; color: var(--text-secondary); line-height: 1.35; }
-.run-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ft-safe); }
+.run-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ft-safe); flex: 0 0 auto; }
 .run-dot.is-stale { background: var(--ft-warn); }
+/* A rebuild is in flight — pulsing says "wait, this is moving" where a static
+   amber dot said "something is wrong". Held still for anyone who asked their
+   OS to stop animating things. */
+.run-dot.is-syncing { background: var(--primary-400); animation: run-dot-pulse 1.4s ease-in-out infinite; }
+@keyframes run-dot-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
+@media (prefers-reduced-motion: reduce) { .run-dot.is-syncing { animation: none; } }
 
 .time-box { text-align: center; padding: 6px; background: #fff; border-radius: var(--radius-sm); border: 1px solid var(--border-card); }
 .time-label { font-size: 9.5px; letter-spacing: 1.1px; text-transform: uppercase; color: var(--text-muted); }

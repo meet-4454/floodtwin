@@ -13,39 +13,97 @@ export const REF_LAT = 28.4595, REF_LNG = 77.0266;
 const MAPPLS_SDK = (key) =>
   `https://apis.mappls.com/advancedmaps/api/${encodeURIComponent(key)}/map_sdk?v=3.0&layer=vector`;
 
-/** Load the Mappls SDK once, retrying a transient CDN/DNS blip a few times. */
-function loadMapplsSDK(key, onStatus) {
+/** True once the SDK has finished defining the constructor we need. */
+const sdkReady = () => !!(window.mappls && typeof window.mappls.Map === 'function');
+
+/** Poll for `mappls.Map` after the script has executed, up to `budgetMs`. */
+function awaitSdkSymbol(budgetMs = 10000) {
   return new Promise((resolve, reject) => {
-    if (window.mappls && typeof window.mappls.Map === 'function') return resolve();
-    if (!key) return reject(new Error('Mappls API key not configured on the server (MAPPLS_API_KEY).'));
-    let attempt = 0;
-    const MAX = 3;
-    const tryLoad = () => {
-      attempt++;
-      const s = document.createElement('script');
-      s.src = MAPPLS_SDK(key);
-      s.async = true;
-      s.onload = () => {
-        // The script tag resolves before `mappls.Map` is actually defined.
-        let t = 0;
-        const iv = setInterval(() => {
-          if (window.mappls && typeof window.mappls.Map === 'function') { clearInterval(iv); resolve(); }
-          else if (++t > 100) { clearInterval(iv); reject(new Error('Mappls SDK loaded but never exposed mappls.Map')); }
-        }, 100);
-      };
-      s.onerror = () => {
-        s.remove();
-        if (attempt < MAX) {
-          onStatus?.(`Map SDK unreachable — retrying (${attempt}/${MAX - 1})…`);
-          setTimeout(tryLoad, 1500 * attempt);
-        } else {
-          reject(new Error('Map SDK failed to load. Check network / adblock / API key.'));
-        }
-      };
-      document.head.appendChild(s);
-    };
-    tryLoad();
+    if (sdkReady()) return resolve();
+    // 25 ms, not 100: the gap between the script executing and the constructor
+    // existing is a couple of frames, and a 100 ms tick spent most of that gap
+    // asleep — up to a tenth of a second of dead time on every console entry,
+    // for nothing.
+    const START = Date.now();
+    const iv = setInterval(() => {
+      if (sdkReady()) { clearInterval(iv); resolve(); }
+      else if (Date.now() - START > budgetMs) {
+        clearInterval(iv);
+        reject(new Error('Mappls SDK loaded but never exposed mappls.Map'));
+      }
+    }, 25);
   });
+}
+
+/* Load the Mappls SDK once per page, retrying a transient CDN/DNS blip.
+ *
+ * MEMOISED, and it ADOPTS a tag the document already has. Both matter:
+ *
+ *  • The console can mount more than once in a page's life (StrictMode's dev
+ *    double-mount, Overview → console → Overview → console). Each mount called
+ *    this, and each call appended ANOTHER <script> for the same SDK, because the
+ *    only guard was `window.mappls` — which is still undefined while the first
+ *    copy is in flight. Two mounts, two full downloads of the same file, racing.
+ *
+ *  • On /twin the server now writes the tag into the document head so the
+ *    download starts at parse time, in parallel with the React bundle instead of
+ *    a round trip behind it (see routes/pages.py). By the time this runs the tag
+ *    is usually already there and often already executed, so the right move is to
+ *    wait on it, not to request the same bytes a second time. */
+let sdkPromise = null;
+
+function loadMapplsSDK(key, onStatus) {
+  if (sdkReady()) return Promise.resolve();
+  if (sdkPromise) return sdkPromise;
+
+  sdkPromise = new Promise((resolve, reject) => {
+    // The tag the server injected on /twin, if this is a fresh console load.
+    const preloaded = document.getElementById('ft-mappls-sdk');
+    if (preloaded) {
+      awaitSdkSymbol(15000).then(resolve, () => {
+        // It is in the document but never produced a usable SDK — a blocked
+        // request, most often. Fall through to our own retrying loader.
+        preloaded.remove();
+        injectWithRetry();
+      });
+      return;
+    }
+    injectWithRetry();
+
+    function injectWithRetry() {
+      if (!key) {
+        reject(new Error('Mappls API key not configured on the server (MAPPLS_API_KEY).'));
+        return;
+      }
+      let attempt = 0;
+      const MAX = 3;
+      const tryLoad = () => {
+        attempt++;
+        const s = document.createElement('script');
+        s.src = MAPPLS_SDK(key);
+        s.async = true;
+        // The script tag resolves before `mappls.Map` is actually defined.
+        s.onload = () => awaitSdkSymbol().then(resolve, reject);
+        s.onerror = () => {
+          s.remove();
+          if (attempt < MAX) {
+            onStatus?.(`Map SDK unreachable — retrying (${attempt}/${MAX - 1})…`);
+            setTimeout(tryLoad, 1500 * attempt);
+          } else {
+            reject(new Error('Map SDK failed to load. Check network / adblock / API key.'));
+          }
+        };
+        document.head.appendChild(s);
+      };
+      tryLoad();
+    }
+  }).catch((e) => {
+    // Never leave a rejected promise memoised: the retry the user is offered
+    // would resolve to the same failure without touching the network.
+    sdkPromise = null;
+    throw e;
+  });
+  return sdkPromise;
 }
 
 // The Mappls glyph CDN serves only SINGLE-font stacks. MapLibre's default is the
