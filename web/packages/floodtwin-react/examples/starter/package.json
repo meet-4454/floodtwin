@@ -1,0 +1,23 @@
+{
+  "name": "floodtwin-starter",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Minimal working FloodTwin embed \u2014 proxy + console in one dev server.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preflight": "node ../preflight.mjs"
+  },
+  "dependencies": {
+    "@airesq/floodtwin-react": "file:../..",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "three": "0.128.0",
+    "zustand": "^4.5.5"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "vite": "^5.4.8"
+  }
+}

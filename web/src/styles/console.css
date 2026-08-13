@@ -1,4 +1,19 @@
 /* Console — light instrument-panel chrome around a full-bleed map. */
+
+/* The component root, sitting between the host's container and .console.
+ *
+ * `.console` is `height: 100%`, so it needs a parent with a resolvable height or
+ * it collapses to nothing — which is what a host page that just drops the
+ * component into an auto-height <div> will produce. So: take the container's
+ * height when it has one, and fall back to a usable minimum when it does not,
+ * because "I embedded it and the page is blank" is otherwise the first thing a
+ * partner reports. Override with the `className` prop if you want a fixed size.
+ */
+.ft-root {
+  height: 100%;
+  min-height: 420px;
+}
+
 .console {
   display: grid;
   grid-template-rows: var(--header-h) 1fr;

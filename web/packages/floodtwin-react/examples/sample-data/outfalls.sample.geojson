@@ -1,0 +1,60 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.097505,
+          28.4244884
+        ]
+      },
+      "properties": {
+        "outfall_id": "PO-001",
+        "outfall_class": "probable nallah/creek connection",
+        "city_side": "eastern side",
+        "terrain_elev_m": 241.91,
+        "basis": "1 CREEKS",
+        "pt_kind": "outfall"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.0975911,
+          28.424636
+        ]
+      },
+      "properties": {
+        "outfall_id": "PO-002",
+        "outfall_class": "probable nallah/creek connection",
+        "city_side": "eastern side",
+        "terrain_elev_m": 241.966,
+        "basis": "1 CREEKS",
+        "pt_kind": "outfall"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.1003271,
+          28.4263631
+        ]
+      },
+      "properties": {
+        "outfall_id": "PO-003",
+        "outfall_class": "probable nallah/creek connection",
+        "city_side": "eastern side",
+        "terrain_elev_m": 242.0,
+        "basis": "1 CREEKS",
+        "pt_kind": "outfall"
+      }
+    }
+  ],
+  "_note": "features[] truncated to 3 for brevity."
+}

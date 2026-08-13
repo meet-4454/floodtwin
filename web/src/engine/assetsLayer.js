@@ -231,7 +231,7 @@ export async function createAssetsLayer(engine, { onDepthAt, onCounts, onStatus 
   async function load(attempt = 0) {
     if (disposed) return;
     try {
-      const res = await fetch('/api/assets?bbox=' + encodeURIComponent(GURUGRAM_BBOX));
+      const res = await engine.client.raw('/api/assets?bbox=' + encodeURIComponent(GURUGRAM_BBOX));
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const buckets = await res.json();
       if (buckets.error) throw new Error(buckets.error);

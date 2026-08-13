@@ -55,7 +55,13 @@ const pad = (n) => String(n).padStart(2, '0');
  * it stays revalidated so a new run is always seen. */
 const withV = (url, v) => (v ? `${url}?v=${encodeURIComponent(v)}` : url);
 
-export function createSimData() {
+/**
+ * @param {object} client  The instance's HTTP client (lib/client.js). Every
+ *   dataset path below is relative to its base URL, so the same code serves our
+ *   own console (base '') and a partner's proxy ('/api/floodtwin'). The `?v=`
+ *   versioning above composes with it — the client only prefixes the base.
+ */
+export function createSimData(client) {
   const state = {
     dataset: 'event',
     base: '/sim',
@@ -77,7 +83,7 @@ export function createSimData() {
 
   async function loadManifest(datasetId) {
     const ds = DATASETS[datasetId] || DATASETS.event;
-    const res = await fetch(`${ds.base}/manifest.json`);
+    const res = await client.raw(`${ds.base}/manifest.json`);
     if (!res.ok) throw new Error(`${ds.label} dataset is not built (${ds.base}/manifest.json → ${res.status})`);
     const man = await res.json();
     state.dataset = ds.id;
@@ -103,7 +109,7 @@ export function createSimData() {
     const flying = state.gridInflight.get(i);
     if (flying) return flying;
     const url = withV(`${state.base}/surface_grid_${pad(i)}.bin`, state.man?.version);
-    const p = fetch(url)
+    const p = client.raw(url)
       .then((r) => { if (!r.ok) throw new Error(`grid ${i}`); return r.arrayBuffer(); })
       .then((buf) => {
         const u16 = new Uint16Array(buf);
@@ -167,7 +173,7 @@ export function createSimData() {
     if (flying) return flying;
     const nn = man.n_nodes, nl = man.n_links, maskB = (nn + 7) >> 3;
     const url = withV(`${state.base}/drain_dyn_${pad(i)}.bin`, man.version);
-    const p = fetch(url)
+    const p = client.raw(url)
       .then((r) => { if (!r.ok) throw new Error(`dyn ${i}`); return r.arrayBuffer(); })
       .then((buf) => {
         const rec = {
@@ -203,11 +209,11 @@ export function createSimData() {
     const sv = man?.static_version || man?.version;
     const geomUrl = (name) => withV(`/sim/${name}.bin`, sv);
     const [geo, nstat, lstat, lclass, nclass] = await Promise.all([
-      fetch(geomUrl('drain_geom')).then((r) => r.arrayBuffer()),
-      fetch(geomUrl('drain_node_static')).then((r) => r.arrayBuffer()),
-      fetch(geomUrl('drain_link_static')).then((r) => r.arrayBuffer()),
-      fetch(geomUrl('drain_link_class')).then((r) => (r.ok ? r.arrayBuffer() : null)).catch(() => null),
-      fetch(geomUrl('drain_node_class')).then((r) => (r.ok ? r.arrayBuffer() : null)).catch(() => null),
+      client.buffer(geomUrl('drain_geom')),
+      client.buffer(geomUrl('drain_node_static')),
+      client.buffer(geomUrl('drain_link_static')),
+      client.bufferOrNull(geomUrl('drain_link_class')),
+      client.bufferOrNull(geomUrl('drain_node_class')),
     ]);
     const nn = man.n_nodes, nl = man.n_links;
     const ll = new Float32Array(geo, 0, nn * 2);

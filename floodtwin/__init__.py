@@ -17,10 +17,12 @@ from flask import Flask, jsonify, request
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .config import (
-    BEHIND_PROXY, DEBUG_MODE, SESSION_COOKIE_SECURE, SESSION_LIFETIME_HOURS,
-    STATIC_DIR, STATIC_MAX_AGE, secret_key,
+    BEHIND_PROXY, CORS_ORIGINS, DEBUG_MODE, SESSION_COOKIE_SECURE,
+    SESSION_LIFETIME_HOURS, STATIC_DIR, STATIC_MAX_AGE, cors_origin_allowed,
+    secret_key,
 )
-from .routes import assets, auth, data, geo, pages, partner
+from . import gate, usage
+from .routes import account, assets, auth, data, geo, pages, partner
 
 # Text that is worth compressing on the way out. The simulation binaries are
 # already gzipped by http.send_data with a cached compression, so they are
@@ -76,9 +78,15 @@ def create_app() -> Flask:
         MAX_CONTENT_LENGTH=1024 * 1024,      # nothing here accepts a large upload
     )
 
+    # Access gate. Installed BEFORE the blueprints so its before_request hook is
+    # the first thing every request meets — including requests to routes added
+    # later, which is the point of gating centrally rather than per-route.
+    gate.install(app)
+
     # Data blueprints register first so their concrete paths win over the SPA
     # catch-all; pages.py is registered last for the same reason.
     app.register_blueprint(data.bp)
+    app.register_blueprint(account.bp)
     app.register_blueprint(assets.bp)
     app.register_blueprint(auth.bp)
     app.register_blueprint(geo.bp)
@@ -93,6 +101,21 @@ def create_app() -> Flask:
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
         response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+
+        # Cross-origin reads, only for explicitly configured origins and only
+        # when FLOODTWIN_CORS_ORIGINS is set (it is empty by default — partners
+        # proxy server-side and never make a cross-origin request). `Vary` is
+        # mandatory whenever the header depends on the request: without it a
+        # shared cache would hand one origin's allowance to another.
+        if CORS_ORIGINS:
+            origin = request.headers.get("Origin", "")
+            response.headers.add("Vary", "Origin")
+            if cors_origin_allowed(origin):
+                response.headers["Access-Control-Allow-Origin"] = origin
+                response.headers["Access-Control-Allow-Headers"] = \
+                    "X-FloodTwin-Key, Authorization, Content-Type"
+                response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+                response.headers["Access-Control-Max-Age"] = "86400"
         return response
 
     @app.after_request
@@ -132,6 +155,10 @@ def create_app() -> Flask:
         response.headers["Content-Length"] = str(len(response.get_data()))
         response.headers.add("Vary", "Accept-Encoding")
         return response
+
+    # Usage accounting is shared across workers via SQLite; create the schema
+    # once at startup rather than on the first counted request.
+    usage.init()
 
     # Warm the critical-asset cache in the background so the first console visit
     # never pays for ~96 cold Google Places calls. Never blocks startup, and a

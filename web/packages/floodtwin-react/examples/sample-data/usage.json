@@ -1,0 +1,65 @@
+{
+  "history": [
+    {
+      "billed_calls": 0,
+      "bytes": 4075,
+      "calls": 5,
+      "date": "2026-08-13"
+    }
+  ],
+  "key": {
+    "created": "2026-08-12T18:15:32+0530",
+    "id": "e2e-partner-0715b7",
+    "name": "E2E Partner",
+    "scopes": [
+      "sim",
+      "drainage",
+      "config"
+    ]
+  },
+  "limits": {
+    "billed_scopes": [
+      "assets",
+      "geocode",
+      "route"
+    ],
+    "daily_billed_quota": 5000,
+    "rate_per_min": 600
+  },
+  "server_time": "2026-08-13T06:38:06Z",
+  "today": {
+    "billed_calls": 0,
+    "by_scope": {
+      "account": {
+        "billed": false,
+        "bytes": 682,
+        "calls": 1,
+        "errors": 0
+      },
+      "assets": {
+        "billed": false,
+        "bytes": 80,
+        "calls": 1,
+        "errors": 1
+      },
+      "geocode": {
+        "billed": false,
+        "bytes": 81,
+        "calls": 1,
+        "errors": 1
+      },
+      "sim": {
+        "billed": false,
+        "bytes": 3232,
+        "calls": 2,
+        "errors": 0
+      }
+    },
+    "bytes": 4075,
+    "calls": 5,
+    "date": "2026-08-13",
+    "quota_exhausted": false,
+    "quota_remaining": 5000,
+    "resets_at": "2026-08-14T00:00:00Z"
+  }
+}

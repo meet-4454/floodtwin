@@ -1,3 +1,4 @@
+import { useTwinStore, useClient } from './lib/context.jsx';
 /* ─────────────────────────────────────────────────────────────────────────────
  * warmConsole — start the console's cold path before it is asked for.
  *
@@ -28,7 +29,7 @@
  * the real import will surface the error properly.
  * ─────────────────────────────────────────────────────────────────────────── */
 
-import { useTwin } from './store/useTwin.js';
+
 
 let warmed = null;
 
@@ -92,21 +93,42 @@ const LAYER_WARM = {
 
 const layerWarmed = new Set();
 
-export function warmLayer(id) {
+/**
+ * @param {string} id      Feature to warm.
+ * @param {object} store   The console instance's store — the manifest carries
+ *                         the ?v= these urls must match.
+ * @param {object} client  The instance's HTTP client. Warming with a bare
+ *                         fetch() would prime the wrong origin entirely in an
+ *                         embed, so the warm has to go the same way the real
+ *                         load will.
+ */
+export function warmLayer(id, store, client) {
   const spec = LAYER_WARM[id];
-  if (!spec || layerWarmed.has(id)) return;
+  if (!spec || layerWarmed.has(id) || !store || !client) return;
   layerWarmed.add(id);
   spec.chunk().catch(() => {});
-  // Read lazily and off the store so this module stays importable from the
-  // landing page without dragging the engine in. The manifest is always loaded
-  // by the time a layer row can be hovered.
-  const man = useTwin.getState().manifest;
-  for (const u of spec.urls(man?.static_version || man?.version)) fetch(u).catch(() => {});
+  // Read lazily off the store so this module stays importable from the landing
+  // page without dragging the engine in. The manifest is always loaded by the
+  // time a layer row can be hovered.
+  const man = store.getState().manifest;
+  for (const u of spec.urls(man?.static_version || man?.version)) {
+    client.raw(u).catch(() => {});
+  }
 }
 
-/** Spread onto a layer toggle: <button {...onLayerIntent(feature.id)} /> */
-export function onLayerIntent(id) {
-  if (!LAYER_WARM[id]) return {};        // nothing heavy behind this one
-  const warm = () => warmLayer(id);
-  return { onMouseEnter: warm, onFocus: warm, onTouchStart: warm };
+/**
+ * Hook form, because the warm now needs this instance's store and client.
+ *
+ * Spread onto a layer toggle:
+ *   const onLayerIntent = useLayerIntent();
+ *   <button {...onLayerIntent(feature.id)} />
+ */
+export function useLayerIntent() {
+  const store = useTwinStore();
+  const client = useClient();
+  return (id) => {
+    if (!LAYER_WARM[id]) return {};      // nothing heavy behind this one
+    const warm = () => warmLayer(id, store, client);
+    return { onMouseEnter: warm, onFocus: warm, onTouchStart: warm };
+  };
 }

@@ -1,0 +1,51 @@
+{
+  "name": "@airesq/floodtwin-react",
+  "version": "1.0.0",
+  "description": "The FloodTwin flood digital-twin console as an embeddable React component. Coupled 2D surface + 1D storm-drain simulation for Gurugram, rendered over a live basemap.",
+  "type": "module",
+  "main": "./dist/lib/index.js",
+  "module": "./dist/lib/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/lib/index.js"
+    },
+    "./styles.css": "./dist/floodtwin.css",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "INTEGRATION.md",
+    "API.md",
+    "examples"
+  ],
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "dependencies": {
+    "three": "0.128.0",
+    "zustand": "^4.5.5"
+  },
+  "keywords": [
+    "flood",
+    "digital-twin",
+    "gis",
+    "maplibre",
+    "mappls",
+    "three",
+    "simulation",
+    "react-component",
+    "gurugram",
+    "drainage"
+  ],
+  "license": "UNLICENSED",
+  "publishConfig": {
+    "access": "restricted"
+  }
+}

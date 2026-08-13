@@ -275,6 +275,10 @@ def _load_disk_cache(force: bool = False) -> None:
             fresh = {"value": entry["value"], "expires_at": float(entry.get("expires_at") or 0)}
             if force or bbox not in _cache:
                 _cache[bbox] = fresh
+    with _lock:
+        # A disk cache written before the bucket limit existed can be larger
+        # than it; trim on load rather than carrying it forward forever.
+        _evict_if_needed()
 
 
 def _save_disk_cache() -> None:
@@ -342,6 +346,7 @@ def _refresh(bbox: str, app=None, wait: bool = False) -> dict | None:
                 ctx.pop()
         with _lock:
             _cache[bbox] = {"value": buckets, "expires_at": time.time() + _TTL_SECONDS}
+            _evict_if_needed()
         _save_disk_cache()
         return buckets
     except Exception as exc:  # noqa: BLE001 — keep whatever is already cached
@@ -378,6 +383,74 @@ def warm_cache_async() -> None:
     threading.Thread(target=run, daemon=True, name="assets-warm").start()
 
 
+# ── Bbox normalisation: the billing control ─────────────────────────────────
+#
+# Every DISTINCT bbox string is its own cache bucket, and filling a cold bucket
+# is ~96 billed Google Places calls. Accepting arbitrary floats therefore meant
+# arbitrary spend: a caller iterating bboxes — or innocently deriving one from
+# the map viewport, so every pan is a new box — could run the bill up without
+# ever looking like abuse. It was an unbounded memory leak for the same reason.
+#
+# Two bounds fix that, and neither changes what the console asks for (it sends a
+# fixed bbox identical to DEFAULT_ASSET_BBOX):
+#
+#   SNAP  — round to _BBOX_STEP, so near-identical boxes collapse onto one
+#           bucket instead of each paying for its own build.
+#   CLAMP — refuse anything outside the served city. A request for Mumbai is a
+#           mistake worth reporting, not something to silently answer with
+#           Gurugram data after paying Google for it.
+_SERVICE_AREA = (28.20, 76.70, 28.75, 77.40)   # s, w, n, e — generous around Gurugram
+_BBOX_STEP = 0.01                              # ~1.1 km; caps the bucket count
+_MAX_SPAN_DEG = 0.60                           # a box larger than the city is a bug
+_BUCKET_LIMIT = 24                             # hard ceiling on distinct buckets
+
+
+def _normalise_bbox(raw: str) -> tuple[str, str | None]:
+    """Canonicalise a bbox, or return the reason it is unacceptable."""
+    parts = (raw or "").strip().split(",")
+    if len(parts) != 4:
+        return "", "bad_bbox"
+    try:
+        s, w, n, e = (float(p) for p in parts)
+    except ValueError:
+        return "", "bad_bbox"
+
+    if s > n:
+        s, n = n, s
+    if w > e:
+        w, e = e, w
+    if (n - s) > _MAX_SPAN_DEG or (e - w) > _MAX_SPAN_DEG:
+        return "", "bbox_too_large"
+
+    as_, aw, an, ae = _SERVICE_AREA
+    if n < as_ or s > an or e < aw or w > ae:
+        return "", "bbox_outside_service_area"
+
+    # Clip to the served area, then snap outward so the requested region is
+    # always covered rather than shaved.
+    s, w = max(s, as_), max(w, aw)
+    n, e = min(n, an), min(e, ae)
+    step = _BBOX_STEP
+    s = math.floor(s / step) * step
+    w = math.floor(w / step) * step
+    n = math.ceil(n / step) * step
+    e = math.ceil(e / step) * step
+    if n - s < step or e - w < step:
+        return "", "bbox_too_small"
+    return f"{s:.2f},{w:.2f},{n:.2f},{e:.2f}", None
+
+
+def _evict_if_needed() -> None:
+    """Keep the bucket count bounded. Caller holds _lock.
+
+    Drops the soonest-to-expire bucket, matching the eviction in routes/partner.py.
+    The default bbox is never the victim in practice — it is refreshed constantly,
+    so its expiry is always the furthest out.
+    """
+    while len(_cache) > _BUCKET_LIMIT:
+        del _cache[min(_cache, key=lambda k: _cache[k]["expires_at"])]
+
+
 # ── Route ───────────────────────────────────────────────────────────────────
 
 @bp.route("/api/assets")
@@ -387,15 +460,9 @@ def assets():
     Always answers from cache when there is one — fresh or stale — so the console
     never blocks on an upstream API it does not control.
     """
-    bbox = (request.args.get("bbox") or DEFAULT_ASSET_BBOX).strip()
-    parts = bbox.split(",")
-    if len(parts) != 4:
-        return jsonify(error="bad_bbox"), 400
-    try:
-        for p in parts:
-            float(p)
-    except ValueError:
-        return jsonify(error="bad_bbox"), 400
+    bbox, err = _normalise_bbox(request.args.get("bbox") or DEFAULT_ASSET_BBOX)
+    if err:
+        return jsonify(error=err), 400
 
     now = time.time()
     with _lock:

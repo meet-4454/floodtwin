@@ -2,10 +2,13 @@
  * that ride on top of it (hotspot beacons, the depth probe). React owns the
  * overlays; the engine owns the pixels. */
 import React, { useEffect, useRef, useState } from 'react';
-import { useTwin } from '../store/useTwin.js';
+import { useTwin, useTwinStore, useClient, useOptions } from '../lib/context.jsx';
 import { colorForDepth } from '../engine/palette.js';
 
 export default function MapCanvas({ onReady }) {
+  const store = useTwinStore();
+  const client = useClient();
+  const options = useOptions();
   const hostRef = useRef(null);
   const twinRef = useRef(null);
   const [probe, setProbe] = useState(null);
@@ -19,7 +22,18 @@ export default function MapCanvas({ onReady }) {
     (async () => {
       try {
         const { startTwin } = await import('../engine/controller.js');
-        const twin = await startTwin({ container: 'ft-map' });
+        // The host ELEMENT, not a global id: two consoles on one page would
+        // otherwise both grab whatever '#ft-map' resolved to first.
+        const twin = await startTwin({
+          container: hostRef.current,
+          store,
+          client,
+          mapplsKey: options.mapplsApiKey,
+          debug: !!options.debug,
+          skipGL: !!options.skipGL,
+          featureLimit: options.featureLimit ?? Infinity,
+          onChunkError: options.onChunkError ?? null,
+        });
         // Unmounted while the engine was still booting (StrictMode's dev
         // double-mount does exactly this). Tear the finished twin down rather
         // than leaking a live map onto a container React has already discarded.
@@ -47,7 +61,8 @@ export default function MapCanvas({ onReady }) {
         // forward. Every signed-out visitor met that on their first visit.
         if (cancelled) return;
         console.error(e);
-        useTwin.getState().setError(e.message || String(e));
+        store.getState().setError(e.message || String(e));
+        options.onError?.(e);
       }
     })();
     return () => {
@@ -59,13 +74,17 @@ export default function MapCanvas({ onReady }) {
   }, []);
 
   // Depth probe: the engine emits a DOM event so it never has to know React.
+  // Scoped to this instance's host element rather than window — on window, a
+  // click in one console would open a probe in every console on the page.
   useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return undefined;
     const onProbe = (e) => {
       const { lng, lat, depth, point } = e.detail;
       setProbe(depth > 0.02 ? { lng, lat, depth, x: point.x, y: point.y } : null);
     };
-    window.addEventListener('ft:probe', onProbe);
-    return () => window.removeEventListener('ft:probe', onProbe);
+    host.addEventListener('ft:probe', onProbe);
+    return () => host.removeEventListener('ft:probe', onProbe);
   }, []);
 
   // Keep beacons glued to their lng/lat as the camera moves.
@@ -88,7 +107,8 @@ export default function MapCanvas({ onReady }) {
 
   return (
     <div className="map-shell">
-      <div id="ft-map" ref={hostRef} className="map-host" />
+      {/* No id: createEngine assigns a unique one per instance. */}
+      <div ref={hostRef} className="map-host" />
 
       {beacons.map((b) => (
         <button

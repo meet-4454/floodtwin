@@ -40,3 +40,23 @@ drainage/live_prev/
 
 # The refresh log is machine state, and it grows forever.
 drainage/live_refresh.log
+
+# Partner API key records. Hashes only — no usable credential is in here — but it
+# is per-deployment state and committing it would let one environment's revocation
+# silently undo another's. Back it up; do not track it.
+keys.json
+keys.json.tmp
+
+# Per-key usage accounting (SQLite). Shared across gunicorn workers, so it is
+# real deployment state — back it up if you bill against it, but never commit it.
+usage.db
+usage.db-wal
+usage.db-shm
+
+# Built npm package.
+web/packages/*/dist/
+web/packages/*/*.tgz
+
+# Assembled partner bundle (contains a built tarball; regenerate with the
+# steps in HANDOFF.md rather than committing it).
+handover/

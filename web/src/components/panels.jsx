@@ -7,7 +7,8 @@
  * MapCanvas) lives on its own.
  * ─────────────────────────────────────────────────────────────────────────── */
 import React, { useEffect, useRef, useState } from 'react';
-import { useTwin, DEPTH_BAND_STOPS } from '../store/useTwin.js';
+import { useTwin, useTwinStore, useClient } from '../lib/context.jsx';
+import { DEPTH_BAND_STOPS } from '../store/useTwin.js';
 import { cssGradient, colorForDepth } from '../engine/palette.js';
 import { DATASETS } from '../engine/simData.js';
 import { runDay } from '../lib/runDay.js';
@@ -22,22 +23,22 @@ function fmtDur(ms) {
 
 /* ── Data source ──────────────────────────────────────────────────────────── */
 export function DataSourcePanel() {
+  const store = useTwinStore();
+  const client = useClient();
   const dataset = useTwin((s) => s.dataset);
   const runStatus = useTwin((s) => s.runStatus);
   const setRunStatus = useTwin((s) => s.setRunStatus);
 
   useEffect(() => {
     let alive = true;
-    const poll = () => fetch('/api/live-forecast/status')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (alive && d) setRunStatus(d); })
-      .catch(() => {});
+    const poll = () => client.jsonOrNull('/api/live-forecast/status')
+      .then((d) => { if (alive && d) setRunStatus(d); });
     poll();
     const iv = setInterval(poll, 5 * 60 * 1000);
     return () => { alive = false; clearInterval(iv); };
-  }, [setRunStatus]);
+  }, [setRunStatus, client]);
 
-  const pick = (id) => useTwin.setState({ dataset: id });
+  const pick = (id) => store.setState({ dataset: id });
   const built = runStatus?.built;
 
   return (
@@ -95,17 +96,18 @@ export function TimeControl() {
   const setStep = useTwin((s) => s.setStep);
   const setPlaying = useTwin((s) => s.setPlaying);
   const setSpeed = useTwin((s) => s.setSpeed);
+  const store = useTwinStore();
   const timer = useRef(null);
 
   useEffect(() => {
     clearInterval(timer.current);
     if (!playing) return;
     timer.current = setInterval(() => {
-      const s = useTwin.getState();
+      const s = store.getState();
       s.setStep(s.step >= s.totalSteps ? 0 : s.step + 1);
     }, speed);
     return () => clearInterval(timer.current);
-  }, [playing, speed]);
+  }, [playing, speed, store]);
 
   let label = '—', sub = '';
   if (dataset === 'live' && manifest?.frames?.[step]) {
@@ -274,6 +276,8 @@ export function HotspotsPanel({ twin }) {
   const hotspots = useTwin((s) => s.hotspots);
   const maxDepth = useTwin((s) => s.maxDepth);
   const on = useTwin((s) => s.features.hotspots);
+  const client = useClient();
+
   // Bumped only when a lookup actually lands, so a resolved name repaints the
   // list without the array's identity churn driving renders on its own.
   const [, bumpNames] = useState(0);
@@ -297,10 +301,10 @@ export function HotspotsPanel({ twin }) {
     let alive = true;
     const keys = need.map(localityKey);
     keys.forEach((k) => localityPending.add(k));
-    fetch('/api/locality?pts=' + encodeURIComponent(
+    client.jsonOrNull('/api/locality?pts=' + encodeURIComponent(
       need.map((s) => `${s.lat.toFixed(5)},${s.lng.toFixed(5)}`).join(';')))
-      .then((r) => (r.ok ? r.json() : { results: [] }))
-      .then(({ results }) => {
+      .then((d) => {
+        const { results } = d || { results: [] };
         for (const r of results || []) {
           if (!r) continue;
           // Record the miss too. An unnamed cell is a real answer — asking again
@@ -377,6 +381,7 @@ export function RoadPanel({ twin }) {
 
 /* ── Search ───────────────────────────────────────────────────────────────── */
 export function SearchBar({ twin }) {
+  const client = useClient();
   const [q, setQ] = useState('');
   const [items, setItems] = useState([]);
   const t = useRef(null);
@@ -385,18 +390,17 @@ export function SearchBar({ twin }) {
     clearTimeout(t.current);
     if (q.trim().length < 2) { setItems([]); return; }
     t.current = setTimeout(() => {
-      fetch('/api/geocode/autocomplete?q=' + encodeURIComponent(q))
-        .then((r) => (r.ok ? r.json() : { suggestions: [] }))
-        .then((d) => setItems(d.suggestions || []))
+      client.jsonOrNull('/api/geocode/autocomplete?q=' + encodeURIComponent(q))
+        .then((d) => setItems(d?.suggestions || []))
         .catch(() => setItems([]));
     }, 220);
     return () => clearTimeout(t.current);
-  }, [q]);
+  }, [q, client]);
 
   const pick = async (it) => {
     setItems([]); setQ(it.main);
     try {
-      const d = await fetch('/api/geocode/place?id=' + encodeURIComponent(it.placeId)).then((r) => r.json());
+      const d = await client.json('/api/geocode/place?id=' + encodeURIComponent(it.placeId));
       if (d.lat && d.lng) twin?.flyTo(d.lng, d.lat, 16.5);
     } catch { /* ignore */ }
   };

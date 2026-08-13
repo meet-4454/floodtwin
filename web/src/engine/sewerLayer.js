@@ -35,7 +35,7 @@ const CASING_WIDTH = [
 
 export async function createSewerLayer(engine) {
   const { map } = engine;
-  const res = await fetch('/drainage/sewer_network.geojson');
+  const res = await engine.client.raw('/drainage/sewer_network.geojson');
   if (!res.ok) throw new Error(`sewer network not built (HTTP ${res.status}) — run build_sewer_network.py`);
   const geo = await res.json();
 

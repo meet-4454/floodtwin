@@ -20,8 +20,8 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { PANEL_GROUPS, PANEL_FEATURES, panelFeaturesInGroup } from '../features/registry.js';
-import { useTwin } from '../store/useTwin.js';
-import { onLayerIntent } from '../warmConsole.js';
+import { useTwin } from '../lib/context.jsx';
+import { useLayerIntent } from '../warmConsole.js';
 
 function ChildRow({ parentId, child, count }) {
   const key = `${parentId}.${child.id}`;
@@ -106,6 +106,7 @@ function ChildPopover({ feature, anchor, onClose, childCount }) {
 }
 
 function FeatureRow({ feature, openId, setOpenId }) {
+  const onLayerIntent = useLayerIntent();
   const on = useTwin((s) => !!s.features[feature.id]);
   const status = useTwin((s) => s.featureStatus[feature.id]);
   const error = useTwin((s) => s.featureError[feature.id]);

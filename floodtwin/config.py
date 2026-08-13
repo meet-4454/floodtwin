@@ -90,6 +90,26 @@ def secret_key() -> bytes:
 PARTNER_BASE_URL = os.environ.get("FLOODTWIN_PARTNER_BASE_URL", "https://mcgapi.floodresq.com")
 PARTNER_API_KEY = os.environ.get("FLOODTWIN_PARTNER_API_KEY", "")
 
+
+# ── Partner access (outbound: keys WE issue) ────────────────────────────────
+# Empty by default, and that is the intended production setting. Partner keys
+# are SERVER-side credentials: the partner's backend proxies its frontend's
+# requests to us and attaches the key, so the browser never holds one and no
+# cross-origin request is ever made — nothing to allow.
+#
+# This exists only for a future direct-from-browser tier. Setting it does NOT
+# weaken the gate (a request still needs a valid key); it only permits the
+# browser to read the response. Comma-separated exact origins, or "*".
+CORS_ORIGINS = tuple(
+    o.strip() for o in os.environ.get("FLOODTWIN_CORS_ORIGINS", "").split(",") if o.strip()
+)
+
+
+def cors_origin_allowed(origin: str) -> bool:
+    if not origin or not CORS_ORIGINS:
+        return False
+    return "*" in CORS_ORIGINS or origin in CORS_ORIGINS
+
 GURUGRAM_CENTER = (28.4595, 77.0266)
 # Deliberately tighter than the district so critical-asset markers stay in-city
 # and don't pull prominent south-Delhi POIs into a Gurugram console.

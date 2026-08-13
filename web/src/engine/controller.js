@@ -15,7 +15,6 @@
 import { createEngine, assertOrder } from './core.js';
 import { createSimData, DATASETS } from './simData.js';
 import { createFloodSurface } from './floodSurface.js';
-import { useTwin } from '../store/useTwin.js';
 import { FEATURES } from '../features/registry.js';
 
 /** Index of the frame whose valid time is closest to now; 0 if undatable. */
@@ -33,8 +32,33 @@ function frameNearestNow(man) {
   return best;
 }
 
-export async function startTwin({ container }) {
-  const S = useTwin.getState;
+/**
+ * Boot one console instance.
+ *
+ * Everything that was module-global is now a parameter: the state `store`, the
+ * HTTP `client` that knows which origin to talk to, and the debug switches that
+ * used to be read off the page's query string. That is the whole difference
+ * between a page and a component you can mount twice.
+ *
+ * @param {Element}  container  Host element for the map.
+ * @param {object}   store      This instance's zustand store (createTwinStore).
+ * @param {object}   client     This instance's HTTP client (createClient).
+ * @param {string}   dataset    Force a dataset ('event' | 'live'). Null means
+ *                              AUTO: today's forecast when it is published,
+ *                              falling back to the archive event.
+ * @param {boolean}  debug      Expose window.__ftTwin, boot diagnostics.
+ * @param {boolean}  skipGL     Boot without the three.js layer (was ?nogl=1).
+ * @param {number}   featureLimit  Mount only the first N default-on features
+ *                                 (was ?bare=N), to bisect a render regression.
+ * @param {function} onChunkError  Called when a lazily-imported feature chunk
+ *                                 fails to load. See the stale-build note below.
+ */
+export async function startTwin({
+  container, store, client, dataset = null, mapplsKey = '',
+  debug = false, skipGL = false, featureLimit = Infinity, onChunkError = null,
+}) {
+  const useTwin = store;
+  const S = store.getState;
 
   // ── EVERYTHING THAT CAN START AT ONCE, STARTS AT ONCE ─────────────────────
   // This chain used to be strictly serial: config → SDK → map → manifest →
@@ -44,14 +68,18 @@ export async function startTwin({ container }) {
   // filename is fixed, so the manifest and grid can be in flight while the
   // Mappls SDK is still downloading.
   S().setStatus('Starting…');
-  // Flask writes the config into index.html, so on a real load this costs
-  // nothing at all — the round trip that used to sit in front of the map SDK is
-  // simply gone. The fetch remains for `npm run dev`, where Vite serves the
-  // un-injected template. (See routes/pages.py.)
-  const cfgP = window.__FT_CONFIG
-    ? Promise.resolve(window.__FT_CONFIG)
-    : fetch('/api/config').then((r) => (r.ok ? r.json() : {})).catch(() => ({}));
-  const sim = createSimData();
+  /* Map SDK key, cheapest source first:
+   *   1. the `mapplsKey` prop — a partner using their own Mappls account;
+   *   2. window.__FT_CONFIG, which Flask writes into index.html, so on our own
+   *      origin this costs nothing at all (see routes/pages.py);
+   *   3. /api/config, for `npm run dev` against the un-injected template and
+   *      for an embed whose key carries the `config` scope. */
+  const cfgP = mapplsKey
+    ? Promise.resolve({})
+    : window.__FT_CONFIG
+      ? Promise.resolve(window.__FT_CONFIG)
+      : client.jsonOrNull('/api/config').then((c) => c || {});
+  const sim = createSimData(client);
 
   /* OPENS ON TODAY'S FORECAST, NOT THE ARCHIVE EVENT.
    *
@@ -65,7 +93,11 @@ export async function startTwin({ container }) {
    * absent on a fresh checkout and briefly during the daily swap. Both manifests
    * are asked for at once — they are ~6 KB — so choosing between them costs
    * nothing, and the grid warm below targets whichever won. */
-  const liveManP = sim.loadManifest('live').then((m) => ({ id: 'live', m }), () => null);
+  // An explicit `dataset` prop overrides the auto-choice: an embed that asks for
+  // the archive event must get it, not whatever happens to be published today.
+  const autoPick = dataset == null;
+  const firstId = autoPick ? 'live' : dataset;
+  const firstManP = sim.loadManifest(firstId).then((m) => ({ id: firstId, m }), () => null);
 
   const cfg = await cfgP;
   S().setStatus('Loading map…');
@@ -75,16 +107,18 @@ export async function startTwin({ container }) {
   // surface_grid_00 any more: which frame we open on is not known until the
   // manifest lands, and warming frame 0 was fetching 1.1 MB we then discarded.
   const engineP = createEngine({
-    container, mapplsKey: cfg.mapplsApiKey, onStatus: (m) => S().setStatus(m),
+    container, client, debug, skipGL,
+    mapplsKey: mapplsKey || cfg.mapplsApiKey,
+    onStatus: (m) => S().setStatus(m),
   });
 
-  const picked = await liveManP;
+  const picked = await firstManP;
   let man, datasetId;
   if (picked) {
     ({ m: man, id: datasetId } = picked);
   } else {
-    // loadManifest RESET sim state to 'live' on its way to failing, so the event
-    // load has to run now rather than having been raced above.
+    // loadManifest RESET sim state on its way to failing, so the fallback load
+    // has to run now rather than having been raced above.
     man = await sim.loadManifest('event');
     datasetId = 'event';
   }
@@ -126,6 +160,11 @@ export async function startTwin({ container }) {
    * names. Guarded by a sessionStorage flag so a genuinely broken build cannot
    * put the tab in a reload loop; the second failure surfaces as a normal error. */
   const RELOADED_KEY = 'ft_stale_build_reloaded';
+  // Reloading the page is the right cure ONLY when the page is ours. Inside a
+  // partner's app the chunks belong to their bundler and a surprise
+  // location.reload() would destroy unsaved work elsewhere on their screen — so
+  // there it becomes a callback they decide what to do with.
+  const mayReload = debug || onChunkError === null;
   const isChunkLoadError = (e) => {
     const m = `${e?.message || e}`;
     return /dynamically imported module|Importing a module script failed|Failed to fetch/i.test(m);
@@ -146,11 +185,14 @@ export async function startTwin({ container }) {
       })
       .catch((e) => {
         console.warn(`[feature ${id}]`, e);
-        if (isChunkLoadError(e) && !sessionStorage.getItem(RELOADED_KEY)) {
-          sessionStorage.setItem(RELOADED_KEY, '1');
-          S().setStatus('A newer build is live — reloading…');
-          window.location.reload();
-          return;                  // the page is going away; don't flag an error
+        if (isChunkLoadError(e)) {
+          onChunkError?.(e, id);
+          if (mayReload && !sessionStorage.getItem(RELOADED_KEY)) {
+            sessionStorage.setItem(RELOADED_KEY, '1');
+            S().setStatus('A newer build is live — reloading…');
+            window.location.reload();
+            return;                // the page is going away; don't flag an error
+          }
         }
         S().setFeatureStatus(id, 'error', e.message || String(e));
         mounts.delete(id);         // let the user retry by toggling again
@@ -515,15 +557,15 @@ export async function startTwin({ container }) {
     const { lng, lat } = e.lngLat;
     const d = sim.depthAt(lng, lat);
     if (d > 0.02) flood.ripple(lng, lat);
-    window.dispatchEvent(new CustomEvent('ft:probe', {
+    // Dispatched on the CONTAINER, not on window: two consoles on one page must
+    // not answer each other's clicks. MapCanvas listens on the same element.
+    engine.container.dispatchEvent(new CustomEvent('ft:probe', {
+      bubbles: false,
       detail: { lng, lat, depth: d, point: e.point },
     }));
   });
 
-  // Debug: ?bare=N mounts only the first N default-on features, so a rendering
-  // regression can be bisected against the feature list in one reload.
-  const bare = new URLSearchParams(location.search).get('bare');
-  const limit = bare === null ? Infinity : Number(bare);
+  const limit = featureLimit;
   const initial = S().features;
   let mounted = 0;
   const boot = [];
@@ -553,8 +595,11 @@ export async function startTwin({ container }) {
   S().setStatus('Ready');
 
   // Debug handle for headless verification (the map alone can't tell you which
-  // frame is bound or what the derived read-outs think).
-  window.__ftTwin = { engine, sim, handles, applyStep, refreshDerived, store: useTwin };
+  // frame is bound or what the derived read-outs think). Opt-in — a packaged
+  // component does not write to the host page's globals uninvited.
+  if (debug) {
+    window.__ftTwin = { engine, sim, handles, applyStep, refreshDerived, store: useTwin };
+  }
 
   let destroyed = false;
   return {

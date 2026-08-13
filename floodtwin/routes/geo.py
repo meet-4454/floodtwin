@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import re
 import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -29,6 +30,45 @@ _NEARBY = "https://places.googleapis.com/v1/places:searchNearby"
 # on every call, so the hotspot panel never resolved a single name. See
 # _google_locality below.
 
+# ── Billed-call cache ───────────────────────────────────────────────────────
+#
+# Autocomplete and place-details are billed PER CALL by Google, and the search
+# box fires one request per debounced keystroke — so typing "sector 56" costs
+# several calls, and the next person typing the same thing paid for it again.
+# Reverse-geocoding already had a cache (_locality_cache below); these two did
+# not, which made them the most expensive endpoints in the app per unit of value.
+#
+# Two TTLs because the two answers age differently: a suggestion list can shift
+# as places open and close, while a resolved place's coordinates effectively
+# never move.
+_AUTOCOMPLETE_TTL = 15 * 60
+_PLACE_TTL = 7 * 24 * 60 * 60
+_GEO_CACHE_LIMIT = 2000
+
+_geo_lock = threading.Lock()
+_geo_cache: dict[str, tuple[float, object]] = {}      # key → (expires_at, value)
+
+
+def _geo_cached(key: str):
+    now = time.time()
+    with _geo_lock:
+        hit = _geo_cache.get(key)
+        if hit and hit[0] > now:
+            return hit[1]
+        if hit:
+            del _geo_cache[key]          # expired
+    return None
+
+
+def _geo_store(key: str, value, ttl: float) -> None:
+    with _geo_lock:
+        _geo_cache[key] = (time.time() + ttl, value)
+        # Bounded so a stream of distinct queries cannot grow this without limit;
+        # evicting the soonest-to-expire keeps the entries most likely to be
+        # reused. Same shape as the cache in routes/partner.py.
+        while len(_geo_cache) > _GEO_CACHE_LIMIT:
+            del _geo_cache[min(_geo_cache, key=lambda k: _geo_cache[k][0])]
+
 
 @bp.route("/api/config")
 def client_config():
@@ -42,6 +82,15 @@ def geocode_autocomplete():
     q = (request.args.get("q") or "").strip()
     if len(q) < 2:
         return jsonify(suggestions=[])
+
+    # Case- and space-insensitive, because "Sector 56" and "sector 56 " are the
+    # same billed question. A typeahead sends every prefix of what is typed, so
+    # this is where most of the saving is.
+    ck = "ac:" + " ".join(q.lower().split())
+    cached = _geo_cached(ck)
+    if cached is not None:
+        return jsonify(suggestions=cached)
+
     key = google_places_api_key()
     if not key:
         return jsonify(error="google_places_not_configured"), 503
@@ -78,6 +127,7 @@ def geocode_autocomplete():
             "secondary": (sf.get("secondaryText") or {}).get("text", ""),
             "description": (pp.get("text") or {}).get("text", ""),
         })
+    _geo_store(ck, out, _AUTOCOMPLETE_TTL)
     return jsonify(suggestions=out)
 
 
@@ -87,6 +137,12 @@ def geocode_place():
     pid = (request.args.get("id") or "").strip()
     if not pid or not re.match(r"^[A-Za-z0-9_\-]+$", pid):
         return jsonify(error="bad_place_id"), 400
+
+    ck = "pl:" + pid
+    cached = _geo_cached(ck)
+    if cached is not None:
+        return jsonify(cached)
+
     key = google_places_api_key()
     if not key:
         return jsonify(error="google_places_not_configured"), 503
@@ -105,11 +161,13 @@ def geocode_place():
         return jsonify(error=str(exc)), 502
 
     loc = data.get("location") or {}
-    return jsonify(
-        lat=loc.get("latitude"), lng=loc.get("longitude"),
-        name=(data.get("displayName") or {}).get("text") or "",
-        address=data.get("formattedAddress") or "",
-    )
+    place = {
+        "lat": loc.get("latitude"), "lng": loc.get("longitude"),
+        "name": (data.get("displayName") or {}).get("text") or "",
+        "address": data.get("formattedAddress") or "",
+    }
+    _geo_store(ck, place, _PLACE_TTL)
+    return jsonify(place)
 
 
 _locality_lock = threading.Lock()

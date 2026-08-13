@@ -74,10 +74,10 @@ export function createBuildings(engine) {
  */
 const WARD_LAYERS = ['district-line', 'wards-line', 'district-label', 'wards-label'];
 
-async function fetchGeo(url) {
-  const r = await fetch(url);
-  if (!r.ok) throw new Error(`${url} HTTP ${r.status}`);
-  return r.json();
+// Takes the engine's client rather than calling fetch: the same code has to
+// resolve against our own origin and against a partner's proxy path.
+async function fetchGeo(client, url) {
+  return client.json(url);
 }
 
 // Both files are CRS84 ([lng,lat]) already — the district's third ordinate is a
@@ -93,9 +93,9 @@ function tag(geo, kind, label) {
 export async function createWards(engine) {
   const { map } = engine;
   const [wardGeo, distGeo] = await Promise.all([
-    fetchGeo('/Gurugram_wards.geojson'),
+    fetchGeo(engine.client, '/Gurugram_wards.geojson'),
     // A missing district file must not cost us the wards.
-    fetchGeo('/Gurugram_district.geojson').catch((e) => {
+    fetchGeo(engine.client, '/Gurugram_district.geojson').catch((e) => {
       console.warn('district boundary unavailable:', e);
       return { features: [] };
     }),

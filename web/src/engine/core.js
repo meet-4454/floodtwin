@@ -161,11 +161,26 @@ function merc(lng, lat) {
   return { x, y: 0.5 - Math.log((1 + sl) / (1 - sl)) / (4 * Math.PI) };
 }
 
+let _instanceSeq = 0;
+
 /**
  * Create the engine. Resolves once the map's style is up and the three.js scene
  * is attached — features can be mounted from that point on.
+ *
+ * @param {Element|string} container  Host element (preferred) or its DOM id.
+ * @param {object} client   The HTTP client every layer fetches through. Carried
+ *                          on the engine so each layer factory, which already
+ *                          receives `engine`, reaches the right origin without a
+ *                          second parameter threaded through all of them.
+ * @param {boolean} debug   Expose window.__ftEngine/__map for headless checks.
+ * @param {boolean} skipGL  Boot the map WITHOUT the three.js layer, so a
+ *                          blank-basemap report can be attributed to the scene
+ *                          or ruled out in one load. (Was `?nogl=1`; a packaged
+ *                          component must not read the host page's URL.)
  */
-export async function createEngine({ container, mapplsKey, onStatus }) {
+export async function createEngine({
+  container, mapplsKey, onStatus, client = null, debug = false, skipGL = false,
+}) {
   onStatus?.('Loading map SDK…');
   await loadMapplsSDK(mapplsKey, onStatus);
   onStatus?.('Initialising map…');
@@ -182,18 +197,25 @@ export async function createEngine({ container, mapplsKey, onStatus }) {
    * library. That surfaced as a bare "Could not start" screen with no way back
    * except a manual reload.
    *
-   * So: retire any previous engine, hand the SDK a genuinely empty container,
-   * and if construction still throws, clear and retry once before giving up
-   * with a message that says what to do. */
+   * So: hand the SDK a genuinely empty container, and if construction still
+   * throws, clear and retry once before giving up with a message that says what
+   * to do.
+   *
+   * What is NOT done any more: this used to destroy whatever engine was in
+   * `window.__ftEngine` before building a new one. That made a second console on
+   * the same page kill the first — invisible while the app was a single page,
+   * fatal for a component somebody can mount twice. Teardown is now the
+   * business of the instance that owns it (engine.destroy, called on unmount). */
   const el = typeof container === 'string' ? document.getElementById(container) : container;
   if (!el) throw new Error(`Map container "${container}" is not in the document.`);
 
-  if (window.__ftEngine && window.__ftEngine !== null) {
-    try { window.__ftEngine.destroy?.(); } catch { /* already half-gone */ }
-    window.__ftEngine = null;
-    window.__map = null;
-  }
-  // Anything the removed map left behind — canvases, control containers — would
+  // The Mappls wrapper keys internal state off the container id, so every
+  // instance needs its own. Adopt whatever id the host element already has,
+  // otherwise mint one.
+  if (!el.id) el.id = `ft-map-${++_instanceSeq}-${Math.random().toString(36).slice(2, 8)}`;
+  const containerId = el.id;
+
+  // Anything a removed map left behind — canvases, control containers — would
   // be adopted by the next instance. Start from bare.
   el.replaceChildren();
 
@@ -209,12 +231,12 @@ export async function createEngine({ container, mapplsKey, onStatus }) {
   };
   let map;
   try {
-    map = new window.mappls.Map(container, mapOptions);
+    map = new window.mappls.Map(containerId, mapOptions);
   } catch (err) {
     console.warn('[engine] map construction failed, clearing and retrying once:', err);
     el.replaceChildren();
     try {
-      map = new window.mappls.Map(container, mapOptions);
+      map = new window.mappls.Map(containerId, mapOptions);
     } catch (err2) {
       throw new Error(`The map could not be initialised (${err2.message || err2}). Reload the page.`);
     }
@@ -231,6 +253,12 @@ export async function createEngine({ container, mapplsKey, onStatus }) {
 
   const engine = {
     THREE, map, toLocal, modelTransform,
+    /** Every layer fetches through this — it knows the base URL. */
+    client,
+    /** The host element. Layers dispatch instance-scoped DOM events on it
+     *  rather than on window, so two consoles never hear each other. */
+    container: el,
+    debug,
     scene: null, camera: null, renderer: null,
     clock: 0,
     /** per-feature handles, keyed by feature id */
@@ -289,9 +317,7 @@ export async function createEngine({ container, mapplsKey, onStatus }) {
     },
   };
 
-  // Debug escape hatch: ?nogl=1 boots the map WITHOUT the three.js layer, so a
-  // blank-basemap report can be attributed to the scene or ruled out in one load.
-  const SKIP_GL = new URLSearchParams(location.search).get('nogl') === '1';
+  const SKIP_GL = skipGL;
   await new Promise((resolve) => {
     let done = false;
     const attach = () => {
@@ -338,21 +364,20 @@ export async function createEngine({ container, mapplsKey, onStatus }) {
   };
   raf = requestAnimationFrame(loop);
 
+  // Coalesce to one resize per frame and skip no-op resizes — a drag on the
+  // sidebar fires this dozens of times, and map.resize() reallocates the
+  // drawing buffer every call.
+  let resizeObserver = null;
   if (window.ResizeObserver) {
-    const el = typeof container === 'string' ? document.getElementById(container) : container;
-    if (el) {
-      // Coalesce to one resize per frame and skip no-op resizes — a drag on the
-      // sidebar fires this dozens of times, and map.resize() reallocates the
-      // drawing buffer every call.
-      let pending = null, lastW = 0, lastH = 0;
-      new ResizeObserver((entries) => {
-        const r = entries[0]?.contentRect;
-        if (r && Math.abs(r.width - lastW) < 1 && Math.abs(r.height - lastH) < 1) return;
-        if (r) { lastW = r.width; lastH = r.height; }
-        if (pending) return;
-        pending = requestAnimationFrame(() => { pending = null; try { map.resize(); } catch { /* not ready */ } });
-      }).observe(el);
-    }
+    let pending = null, lastW = 0, lastH = 0;
+    resizeObserver = new ResizeObserver((entries) => {
+      const r = entries[0]?.contentRect;
+      if (r && Math.abs(r.width - lastW) < 1 && Math.abs(r.height - lastH) < 1) return;
+      if (r) { lastW = r.width; lastH = r.height; }
+      if (pending) return;
+      pending = requestAnimationFrame(() => { pending = null; try { map.resize(); } catch { /* not ready */ } });
+    });
+    resizeObserver.observe(el);
   }
 
   // Idempotent on purpose: React can call the cleanup more than once, and
@@ -365,15 +390,20 @@ export async function createEngine({ container, mapplsKey, onStatus }) {
     destroyed = true;
     try { cancelAnimationFrame(raf); } catch { /* never started */ }
     try { document.removeEventListener('visibilitychange', onVis); } catch { /* noop */ }
+    try { resizeObserver?.disconnect(); } catch { /* never observed */ }
     try { engine.tickers.clear(); engine.stepHandlers.clear(); } catch { /* noop */ }
     try { engine.renderer?.dispose?.(); } catch { /* context already lost */ }
     try { map.remove(); } catch { /* already gone */ }
-    if (window.__ftEngine === engine) { window.__ftEngine = null; window.__map = null; }
+    if (debug && window.__ftEngine === engine) { window.__ftEngine = null; window.__map = null; }
   };
 
-  // Debug handles for headless verification.
-  window.__ftEngine = engine;
-  window.__map = map;
+  // Debug handles for headless verification. Opt-in: a packaged component has
+  // no business writing to the host page's globals, and with more than one
+  // instance mounted these names could only ever describe one of them.
+  if (debug) {
+    window.__ftEngine = engine;
+    window.__map = map;
+  }
   return engine;
 }
 

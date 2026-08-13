@@ -22,10 +22,10 @@
  * ─────────────────────────────────────────────────────────────────────────── */
 import { addLayerSafe, FONT_BOLD } from './core.js';
 
-const noFail = (url) => fetch(url).then((r) => (r.ok ? r.json() : null)).catch(() => null);
-
 export function createDrainageAssets(engine, { depthAt, onReady } = {}) {
   const { map, THREE, scene, toLocal } = engine;
+  // A missing inventory must degrade the map, never break the drainage mount.
+  const noFail = (url) => engine.client.jsonOrNull(url);
 
   const groups = {};   // name → [layer ids]
   const on = { inlets: true, outfalls: true, pumps: true, surcharge: true };

@@ -7,7 +7,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:lib": "vite build --config vite.lib.config.js && node build/emit-types.js",
+    "pack:lib": "npm run build:lib && cd packages/floodtwin-react && npm pack"
   },
   "dependencies": {
     "react": "^18.3.1",
