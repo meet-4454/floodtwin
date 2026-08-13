@@ -18,10 +18,28 @@ from __future__ import annotations
 import argparse
 import secrets
 import sys
+import types
 import time
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
+# Import floodtwin.keys / floodtwin.usage WITHOUT executing floodtwin/__init__.py.
+#
+# That module builds the Flask application, so a plain `from floodtwin import
+# keys` makes this CLI depend on Flask, gunicorn and everything else the server
+# needs — and then dies with ModuleNotFoundError when it is run with the system
+# python instead of the service's virtualenv. Issuing a key is a stdlib-only
+# operation (hashlib + json + sqlite3) and should stay runnable with any python
+# on the box.
+#
+# Registering a stub package with a __path__ lets the submachinery find the
+# submodules and resolve their `from .config import …` relative imports, while
+# the real __init__ never runs.
+_pkg = types.ModuleType("floodtwin")
+_pkg.__path__ = [str(ROOT / "floodtwin")]
+sys.modules.setdefault("floodtwin", _pkg)
 
 from floodtwin import keys as keystore   # noqa: E402
 from floodtwin import usage               # noqa: E402
